@@ -1,0 +1,50 @@
+# Architecture Plan
+
+## Product Scope
+
+Build the repository as a Next.js App Router application for daily tracking of papers and GitHub repositories. The product name should continue to come from GitHub issues and any future `PRODUCT.md`; do not introduce agent names or placeholders.
+
+## Module Structure
+
+- `src/app`: App Router routes, layouts, route handlers, loading/error boundaries, and server actions where appropriate.
+- `src/components`: Reusable UI components, split by domain (`paper`, `repository`, `dashboard`, `filters`, `export`, `shell`) and low-level primitives.
+- `src/lib`: Shared runtime utilities, environment parsing, date grouping, language helpers, fetch clients, export helpers, and error handling.
+- `src/services`: Data-access and business workflows for papers, repositories, summaries, notes, tags, ingest, search, and scheduled fetches.
+- `src/validators`: Zod schemas for route inputs, import payloads, fetcher outputs, and service boundaries.
+- `src/types`: Shared TypeScript types inferred from Zod and Prisma where useful; avoid duplicate hand-written model shapes.
+- `src/llm`: LLM client abstraction, prompt templates, bilingual summary parsing, retries, and provider-specific adapters.
+- `src/fetchers`: arXiv, GitHub, generic web, and PDF metadata fetchers with normalized result contracts.
+- `src/export`: Markdown, JSON, and CSV export formatters.
+- `prisma`: Prisma schema, migrations, seed script, and generated client integration.
+- `tests`: Unit tests for fetchers, summarization, exports, services, plus end-to-end workflow coverage.
+
+## Shared Data Model
+
+- Model content as a common item concept with separate `Paper` and `Repository` tables for source-specific fields.
+- Store bilingual summaries in a related `Summary` model keyed by item type, item id, language, summary style, and generated metadata.
+- Store `Tag` and `Note` as reusable bilingual-aware entities linked to either papers or repositories.
+- Track ingestion provenance with source URL, canonical URL, fetch status, dedupe keys, timestamps, archive/important flags, and error fields.
+- Keep Prisma as the database source of truth and derive API/service types from Prisma plus Zod validation at boundaries.
+
+## Issue Dependencies
+
+- Issues 1-4 establish the application shell, Tailwind, linting, TypeScript, dark mode, responsiveness, and language toggle scaffolding.
+- Issues 3-8 establish persistence: PostgreSQL, Prisma, data models, validation, service layer, and seed data.
+- Issues 9-13 implement ingestion sources and endpoints: arXiv, GitHub repositories, generic web/PDF metadata, batch URL import, and Markdown import.
+- Issues 14-17 add summarization: LLM abstraction, paper/repo summary endpoints, and automatic summarization on ingest.
+- Issues 18-26 build the primary user workflow: dashboard, cards, details, add-item UI, search/filter/sort, notes/tags, and item actions.
+- Issues 27-29 implement export formats and UI controls.
+- Issues 30-31 add scheduled or manual discovery jobs for arXiv keywords and GitHub trending.
+- Issues 32-34 harden the product with unit tests, E2E coverage, error states, loading/empty states, and responsive review.
+- Issue 35 finalizes README and run documentation after implementation details stabilize.
+
+## Key Design Decisions
+
+- Use server-first Next.js App Router patterns for data loading and mutations; only use client components for interactive UI state.
+- Centralize all database writes through services so ingestion, summarization, UI edits, imports, and scheduled jobs share dedupe and validation behavior.
+- Normalize fetcher outputs before persistence so source-specific parsing does not leak into UI components or export code.
+- Keep bilingual support explicit with `en` and `zh` language fields or rows, not ad hoc string suffixes in UI logic.
+- Make summarization provider-swappable behind a small interface so tests can use deterministic fakes.
+- Prefer idempotent ingestion endpoints with canonical URL and source-specific IDs to avoid duplicate papers or repositories.
+- Build exports from service-layer DTOs rather than UI components to keep formats stable and testable.
+- Add focused tests alongside each feature with broader E2E coverage once the ingest-to-summary-to-export workflow exists.
