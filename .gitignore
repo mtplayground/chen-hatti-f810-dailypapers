@@ -4,6 +4,7 @@ node_modules/
 out/
 *.tsbuildinfo
 .env*
+!.env.example
 .gh_token
 .claude/
 .database_url
