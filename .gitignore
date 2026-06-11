@@ -1,8 +1,14 @@
 target/
 node_modules/
+.next/
+out/
+*.tsbuildinfo
+.env*
 .gh_token
 .claude/
 .database_url
+.db_decision
+.storage_decision
 .task_id
 .container_name
 .app_name
