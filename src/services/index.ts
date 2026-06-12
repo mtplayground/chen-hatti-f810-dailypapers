@@ -1,5 +1,6 @@
 export * from "@/services/dashboard";
 export * from "@/services/arxiv-daily-fetch";
+export * from "@/services/arxiv-field-presets";
 export * from "@/services/daily-fetch";
 export * from "@/services/github-trending-fetch";
 export * from "@/services/github-fastest-growing-fetch";

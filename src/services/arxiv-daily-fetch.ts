@@ -1,6 +1,11 @@
 import { z } from "zod";
 
 import { searchArxivPapersByKeywords, type ArxivPaperMetadata } from "@/fetchers/arxiv";
+import {
+  ArxivFieldPresetError,
+  resolveArxivFieldKeywords,
+  type ArxivFieldPresetId,
+} from "@/services/arxiv-field-presets";
 import { prisma } from "@/lib/prisma";
 import {
   ingestUrl,
@@ -36,6 +41,7 @@ const defaultFalseBooleanSchema = z.preprocess(booleanValue, z.boolean().default
 
 const dailyArxivFetchSchema = z
   .object({
+    field: z.string().trim().optional(),
     keywords: keywordListSchema,
     maxResults: z.coerce.number().int().min(1).max(MAX_RESULTS_LIMIT).optional(),
     date: dateStringSchema.optional(),
@@ -53,6 +59,8 @@ export type DailyArxivFetchInput = z.input<typeof dailyArxivFetchSchema>;
 type DailyArxivFetchData = z.output<typeof dailyArxivFetchSchema>;
 
 export type DailyArxivFetchResult = {
+  field: ArxivFieldPresetId | null;
+  keywordSource: "preset" | "custom" | "environment";
   keywords: string[];
   submittedAfter: string;
   maxResults: number;
@@ -105,11 +113,10 @@ export class DailyArxivFetchError extends Error {
   }
 }
 
-export async function fetchDailyArxivPapers(
-  input: unknown = {},
-): Promise<DailyArxivFetchResult> {
+export async function fetchDailyArxivPapers(input: unknown = {}): Promise<DailyArxivFetchResult> {
   const data = dailyArxivFetchSchema.parse(input);
-  const keywords = data.keywords ?? getConfiguredKeywords();
+  const resolvedKeywords = resolveDailyKeywords(data);
+  const keywords = resolvedKeywords.keywords;
   const maxResults = data.maxResults ?? getConfiguredMaxResults();
   const submittedAfter = submittedAfterFromInput(data);
   const papers = await searchArxivPapers(keywords, maxResults, submittedAfter);
@@ -120,6 +127,8 @@ export async function fetchDailyArxivPapers(
   }
 
   return {
+    field: resolvedKeywords.field,
+    keywordSource: resolvedKeywords.source,
     keywords,
     submittedAfter: submittedAfter.toISOString(),
     maxResults,
@@ -210,6 +219,36 @@ async function processPaper(
       error: error instanceof Error ? error.message : "Unknown arXiv daily fetch error.",
     };
   }
+}
+
+function resolveDailyKeywords(data: DailyArxivFetchData): {
+  field: ArxivFieldPresetId | null;
+  source: "preset" | "custom" | "environment";
+  keywords: string[];
+} {
+  try {
+    const resolved = resolveArxivFieldKeywords({ field: data.field, keywords: data.keywords });
+
+    if (resolved !== null) {
+      return {
+        field: resolved.field.id,
+        source: resolved.source,
+        keywords: resolved.keywords,
+      };
+    }
+  } catch (error) {
+    if (error instanceof ArxivFieldPresetError) {
+      throw new DailyArxivFetchError(error.message, "CONFIG");
+    }
+
+    throw error;
+  }
+
+  return {
+    field: null,
+    source: "environment",
+    keywords: getConfiguredKeywords(),
+  };
 }
 
 function submittedAfterFromInput(data: DailyArxivFetchData): Date {
