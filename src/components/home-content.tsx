@@ -169,12 +169,12 @@ function ExportGroup({
   params: string;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
       <div>
         <p className="text-sm font-semibold">{label}</p>
         <p className="text-xs font-medium text-[var(--color-muted)]">{countLabel}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="grid gap-2 min-[420px]:grid-cols-3 sm:flex sm:flex-wrap sm:items-center">
         <ExportLink href={`/api/export/markdown?${params}`} label="Markdown" />
         <ExportLink href={`/api/export/json?${params}`} label="JSON" />
         <ExportLink href={`/api/export/csv?${params}`} label="CSV" />
@@ -194,9 +194,9 @@ function DashboardDaySection({
 }) {
   return (
     <section className="grid gap-5 border-t border-[var(--color-border)] pt-6">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-baseline sm:justify-between">
         <h2 className="text-2xl font-semibold">{formatDayLabel(day.date)}</h2>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid gap-2 min-[420px]:grid-cols-4 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           <p className="text-sm font-medium text-[var(--color-muted)]">
             {day.papers.length + day.repositories.length} items
           </p>
@@ -249,7 +249,7 @@ function DashboardDaySection({
 function ExportLink({ href, label }: { href: string; label: string }) {
   return (
     <a
-      className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
+      className="inline-flex min-h-9 w-full items-center justify-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)] sm:w-auto"
       download
       href={href}
     >

@@ -138,8 +138,11 @@ export function AddItemPanel() {
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4">
-          <div className="grid max-h-[90vh] w-full max-w-3xl gap-5 overflow-y-auto border border-[var(--color-border)] bg-[var(--color-panel)] p-5 shadow-xl">
+        <div className="fixed inset-0 z-50 grid place-items-end bg-black/35 p-3 sm:place-items-center sm:p-4">
+          <div
+            aria-busy={busy}
+            className="grid max-h-[92vh] w-full max-w-3xl gap-5 overflow-y-auto border border-[var(--color-border)] bg-[var(--color-panel)] p-4 shadow-xl sm:max-h-[90vh] sm:p-5"
+          >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="grid gap-1">
                 <p className="text-xs font-semibold tracking-[0.08em] text-[var(--color-muted)] uppercase">
@@ -150,6 +153,7 @@ export function AddItemPanel() {
               <button
                 aria-label="Close add item dialog"
                 className="inline-flex size-10 items-center justify-center border border-[var(--color-border)] transition hover:border-[var(--color-accent)]"
+                disabled={busy}
                 onClick={() => setOpen(false)}
                 type="button"
               >
@@ -171,6 +175,7 @@ export function AddItemPanel() {
                         : "border-[var(--color-border)] hover:border-[var(--color-accent)]"
                     }`}
                     key={option.id}
+                    disabled={busy}
                     onClick={() => switchMode(option.id)}
                     role="tab"
                     type="button"
@@ -188,6 +193,7 @@ export function AddItemPanel() {
                   <input
                     className="min-h-11 w-full border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm outline-none focus:border-[var(--color-accent)]"
                     id="single-url"
+                    disabled={busy}
                     onChange={(event) => setSingleUrl(event.target.value)}
                     placeholder="https://arxiv.org/abs/..."
                     type="url"
@@ -201,6 +207,7 @@ export function AddItemPanel() {
                   <textarea
                     className="min-h-44 w-full resize-y border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-accent)]"
                     id="batch-urls"
+                    disabled={busy}
                     onChange={(event) => setBatchUrls(event.target.value)}
                     placeholder="Paste one URL per line"
                     value={batchUrls}
@@ -214,6 +221,7 @@ export function AddItemPanel() {
                     <textarea
                       className="min-h-48 w-full resize-y border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm leading-6 outline-none focus:border-[var(--color-accent)]"
                       id="markdown-content"
+                      disabled={busy}
                       onChange={(event) => setMarkdown(event.target.value)}
                       placeholder="Paste Markdown with paper or repository links"
                       value={markdown}
@@ -224,6 +232,7 @@ export function AddItemPanel() {
                       accept=".md,.markdown,text/markdown,text/plain"
                       className="w-full border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm"
                       id="markdown-file"
+                      disabled={busy}
                       onChange={(event) => setMarkdownFile(event.target.files?.[0] ?? null)}
                       type="file"
                     />
@@ -235,6 +244,7 @@ export function AddItemPanel() {
                 <label className="inline-flex items-center gap-2">
                   <input
                     checked={important}
+                    disabled={busy}
                     onChange={(event) => setImportant(event.target.checked)}
                     type="checkbox"
                   />
@@ -243,6 +253,7 @@ export function AddItemPanel() {
                 <label className="inline-flex items-center gap-2">
                   <input
                     checked={autoSummarize}
+                    disabled={busy}
                     onChange={(event) => setAutoSummarize(event.target.checked)}
                     type="checkbox"
                   />
@@ -250,14 +261,14 @@ export function AddItemPanel() {
                 </label>
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="grid gap-3 sm:flex sm:flex-wrap sm:items-center sm:justify-between">
                 <button
-                  className="inline-flex min-h-10 items-center gap-2 bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-accent-ink)] transition disabled:cursor-not-allowed disabled:opacity-55"
+                  className="inline-flex min-h-10 w-full items-center justify-center gap-2 bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-[var(--color-accent-ink)] transition disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto"
                   disabled={!canSubmit}
                   type="submit"
                 >
                   {busy ? <Loader2 aria-hidden="true" className="animate-spin" size={16} /> : null}
-                  Import
+                  {busy ? "Importing" : "Import"}
                 </button>
                 {submitState.message !== null ? (
                   <p
@@ -266,7 +277,7 @@ export function AddItemPanel() {
                         ? "text-red-700 dark:text-red-300"
                         : "text-[var(--color-muted)]"
                     }`}
-                    role="status"
+                    role={submitState.status === "error" ? "alert" : "status"}
                   >
                     {submitState.message}
                   </p>

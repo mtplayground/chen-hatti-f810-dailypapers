@@ -57,10 +57,18 @@ export function RepositoryCard({
         </div>
       </header>
 
-      <section className="grid gap-3 border-l-4 border-[var(--color-accent)] bg-[var(--color-surface)] p-4">
+      <section
+        className={`grid gap-3 bg-[var(--color-surface)] p-4 ${
+          summary === null
+            ? "border border-dashed border-[var(--color-border)]"
+            : "border-l-4 border-[var(--color-accent)]"
+        }`}
+      >
         <div className="grid gap-1">
           <p className="text-xs font-semibold tracking-[0.08em] text-[var(--color-muted)] uppercase">
-            README summary{summary !== null ? ` · ${summary.language}` : ""}
+            {summary === null
+              ? "README summary unavailable"
+              : `README summary · ${summary.language}`}
           </p>
           <h5 className="font-semibold">{summary?.headline ?? repository.name}</h5>
         </div>
@@ -116,7 +124,7 @@ export function RepositoryCard({
           openLabel="Open GitHub"
         />
         <ItemMeta tags={repository.tags} />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 min-[420px]:grid-cols-2 sm:flex sm:flex-wrap">
           <ItemLink href={repository.url} label="Repository" />
         </div>
         <ItemNotesTagsEditor
@@ -195,7 +203,7 @@ function ItemMeta({ tags }: { tags: DashboardTag[] }) {
 function ItemLink({ href, label }: { href: string; label: string }) {
   return (
     <a
-      className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
+      className="inline-flex min-h-9 w-full items-center justify-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)] sm:w-auto"
       href={href}
       rel="noreferrer"
       target="_blank"

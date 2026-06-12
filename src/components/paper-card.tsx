@@ -76,7 +76,9 @@ export function PaperCard({
             </ul>
           ) : null}
         </section>
-      ) : null}
+      ) : (
+        <SummaryEmptyState kind="paper" />
+      )}
 
       <ReadMoreDetails title={`${paper.title} details`}>
         <section className="grid gap-2">
@@ -113,7 +115,7 @@ export function PaperCard({
           openLabel={links[0]?.label === "PDF" ? "Open PDF" : "Open paper"}
         />
         <ItemMeta tags={paper.tags} />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid gap-2 min-[420px]:grid-cols-2 sm:flex sm:flex-wrap">
           {links.map((link) => (
             <ItemLink href={link.href} key={`${link.label}:${link.href}`} label={link.label} />
           ))}
@@ -194,7 +196,7 @@ function ItemMeta({ tags }: { tags: DashboardTag[] }) {
 function ItemLink({ href, label }: { href: string; label: string }) {
   return (
     <a
-      className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
+      className="inline-flex min-h-9 w-full items-center justify-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)] sm:w-auto"
       href={href}
       rel="noreferrer"
       target="_blank"
@@ -202,6 +204,17 @@ function ItemLink({ href, label }: { href: string; label: string }) {
       <ExternalLink aria-hidden="true" size={15} />
       {label}
     </a>
+  );
+}
+
+function SummaryEmptyState({ kind }: { kind: "paper" }) {
+  return (
+    <section className="grid gap-2 border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+      <p className="text-sm font-semibold">Summary unavailable</p>
+      <p className="text-sm leading-6 text-[var(--color-muted)]">
+        This {kind} has been saved, but no generated summary is available yet.
+      </p>
+    </section>
   );
 }
 
