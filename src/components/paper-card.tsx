@@ -2,6 +2,7 @@
 
 import { BookOpen, CalendarDays, ExternalLink, Link2, type LucideIcon } from "lucide-react";
 
+import { ItemActions } from "@/components/item-actions";
 import { ItemNotesTagsEditor } from "@/components/item-notes-tags-editor";
 import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardPaper, DashboardSummary, DashboardTag } from "@/services/dashboard";
@@ -103,6 +104,14 @@ export function PaperCard({
       </ReadMoreDetails>
 
       <footer className="grid gap-3">
+        <ItemActions
+          archived={paper.archived}
+          copyText={paperCopyText(paper, summary)}
+          important={paper.important}
+          itemId={paper.id}
+          openHref={links[0]?.href ?? null}
+          openLabel={links[0]?.label === "PDF" ? "Open PDF" : "Open paper"}
+        />
         <ItemMeta tags={paper.tags} />
         <div className="flex flex-wrap gap-2">
           {links.map((link) => (
@@ -222,6 +231,22 @@ function paperLinks(paper: DashboardPaper) {
   }
 
   return links;
+}
+
+function paperCopyText(paper: DashboardPaper, summary: DashboardSummary | null): string {
+  const lines = [
+    paper.title,
+    paper.authors.length > 0 ? `Authors: ${paper.authors.join(", ")}` : null,
+    paper.venue !== null ? `Venue: ${paper.venue}` : null,
+    summary !== null ? `Summary (${summary.language}): ${summary.summary}` : null,
+    summary !== null && summary.keyPoints.length > 0
+      ? `Key points:\n${summary.keyPoints.map((point) => `- ${point}`).join("\n")}`
+      : null,
+    paper.relevanceNotes !== null ? `Relevance: ${paper.relevanceNotes}` : null,
+    paper.pdfUrl ?? paper.landingUrl ?? paper.sourceUrl ?? paper.canonicalUrl,
+  ];
+
+  return lines.filter((line): line is string => line !== null && line.trim() !== "").join("\n\n");
 }
 
 function formatOptionalDate(date: string | null): string | null {
