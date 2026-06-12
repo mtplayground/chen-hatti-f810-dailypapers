@@ -97,7 +97,7 @@ export type HuggingFaceDailyFetchItemResult =
 export class HuggingFaceDailyFetchError extends Error {
   constructor(
     message: string,
-    readonly code: "FETCH_FAILED",
+    readonly code: "FETCH_FAILED" | "CONFIG",
   ) {
     super(message);
     this.name = "HuggingFaceDailyFetchError";
@@ -108,7 +108,14 @@ export async function fetchHuggingFaceDailyTopPapers(
   input: HuggingFaceDailyFetchInput = {},
 ): Promise<HuggingFaceDailyFetchResult> {
   const data = huggingFaceDailyFetchSchema.parse(input);
-  const maxResults = data.maxResults ?? DEFAULT_MAX_RESULTS;
+  const maxResults =
+    data.maxResults ??
+    configuredInteger(
+      "HUGGINGFACE_DAILY_PAPERS_MAX_RESULTS",
+      DEFAULT_MAX_RESULTS,
+      1,
+      MAX_RESULTS_LIMIT,
+    );
   const papers = await fetchDailyPapers(maxResults);
   const results: HuggingFaceDailyFetchItemResult[] = [];
 
@@ -312,6 +319,25 @@ function analysisJson(paper: HuggingFaceDailyPaperMetadata): Prisma.InputJsonObj
     arxivId: paper.arxivId,
     version: paper.version,
   };
+}
+
+function configuredInteger(key: string, fallback: number, min: number, max: number): number {
+  const raw = process.env[key];
+
+  if (raw === undefined || raw.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number(raw);
+
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
+    throw new HuggingFaceDailyFetchError(
+      `${key} must be an integer from ${min} to ${max}.`,
+      "CONFIG",
+    );
+  }
+
+  return parsed;
 }
 
 function booleanValue(value: unknown): unknown {

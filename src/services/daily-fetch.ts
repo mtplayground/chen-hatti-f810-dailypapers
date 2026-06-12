@@ -188,7 +188,7 @@ async function fetchRepositories(
 
 function paperInput(data: UnifiedDailyFetchData): HuggingFaceDailyFetchInput {
   return {
-    maxResults: data.papers?.maxResults ?? data.papersMaxResults ?? data.maxResults ?? 5,
+    maxResults: data.papers?.maxResults ?? data.papersMaxResults ?? data.maxResults,
     important: data.papers?.important ?? data.important,
     autoSummarize: data.papers?.autoSummarize ?? data.autoSummarize,
     dryRun: data.papers?.dryRun ?? data.dryRun,
@@ -199,8 +199,7 @@ function repositoryInput(data: UnifiedDailyFetchData): GitHubFastestGrowingFetch
   return {
     keywords: data.repositories?.keywords ?? data.repositoryKeywords,
     topics: data.repositories?.topics ?? data.repositoryTopics,
-    maxResults:
-      data.repositories?.maxResults ?? data.repositoriesMaxResults ?? data.maxResults ?? 5,
+    maxResults: data.repositories?.maxResults ?? data.repositoriesMaxResults ?? data.maxResults,
     candidateLimit: data.repositories?.candidateLimit ?? data.repositoryCandidateLimit,
     lookbackDays: data.repositories?.lookbackDays ?? data.repositoryLookbackDays,
     createdAfter: data.repositories?.createdAfter ?? data.repositoryCreatedAfter,
