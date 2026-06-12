@@ -1,6 +1,7 @@
 import { ItemKind, Locale, type Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { renderCsv } from "@/services/csv-export-format";
 import {
   exportFilename,
   filterAndSortExportItems,
@@ -272,57 +273,6 @@ function toCsvRow(item: PortableItemRecord): Record<string, string | number | bo
     notes_en: noteForLocale(item, Locale.EN)?.content ?? null,
     notes_zh: noteForLocale(item, Locale.ZH)?.content ?? null,
   };
-}
-
-function renderCsv(rows: Array<Record<string, string | number | boolean | null>>): string {
-  const headers = [
-    "id",
-    "kind",
-    "created_at",
-    "updated_at",
-    "important",
-    "source_url",
-    "canonical_url",
-    "title",
-    "authors",
-    "venue",
-    "published_at",
-    "revised_at",
-    "arxiv_id",
-    "doi",
-    "paper_url",
-    "abstract",
-    "relevance_score",
-    "relevance_notes",
-    "repo_owner",
-    "repo_name",
-    "repo_url",
-    "repo_description",
-    "stars",
-    "forks",
-    "primary_language",
-    "last_updated_at",
-    "tech_stack",
-    "install_difficulty",
-    "research_value_score",
-    "research_value_notes",
-    "tags",
-    "summary_en",
-    "key_points_en",
-    "summary_zh",
-    "key_points_zh",
-    "notes_en",
-    "notes_zh",
-  ];
-  const csvRows = [headers, ...rows.map((row) => headers.map((header) => row[header] ?? ""))];
-
-  return `${csvRows.map((row) => row.map(csvCell).join(",")).join("\n")}\n`;
-}
-
-function csvCell(value: string | number | boolean): string {
-  const text = String(value).replace(/\r?\n/g, " ").trim();
-  const safeText = /^[=+\-@]/.test(text) ? `'${text}` : text;
-  return `"${safeText.replaceAll('"', '""')}"`;
 }
 
 function summaryForLocale(item: PortableItemRecord, locale: Locale) {
