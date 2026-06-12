@@ -39,6 +39,10 @@ type GitHubReadmeResponse = {
   encoding?: unknown;
 };
 
+type GitHubSearchRepositoriesResponse = {
+  items?: unknown;
+};
+
 export type GitHubRepositoryMetadata = {
   owner: string;
   name: string;
@@ -58,6 +62,29 @@ export type GitHubRepositoryMetadata = {
   canonicalUrl: string;
 };
 
+export type GitHubTrendingSearchInput = {
+  keywords: string[];
+  topics: string[];
+  maxResults: number;
+  minStars?: number;
+  pushedAfter?: Date;
+};
+
+export type GitHubRepositorySearchResult = {
+  owner: string;
+  name: string;
+  fullName: string;
+  url: string;
+  description: string | null;
+  stars: number;
+  forks: number;
+  primaryLanguage: string | null;
+  lastUpdatedAt: Date | null;
+  pushedAt: Date | null;
+  topics: string[];
+  canonicalUrl: string;
+};
+
 export class GitHubRepoFetchError extends Error {
   constructor(
     message: string,
@@ -71,6 +98,28 @@ export class GitHubRepoFetchError extends Error {
     super(message);
     this.name = "GitHubRepoFetchError";
   }
+}
+
+export async function searchGitHubTrendingRepositories(
+  input: GitHubTrendingSearchInput,
+  options: { fetcher?: FetchLike; signal?: AbortSignal; token?: string | null } = {},
+): Promise<GitHubRepositorySearchResult[]> {
+  const fetcher = options.fetcher ?? fetch;
+  const token = options.token ?? process.env["GITHUB_TOKEN"] ?? process.env["GH_TOKEN"] ?? null;
+  const response = await requestGitHubJson<GitHubSearchRepositoriesResponse>(
+    fetcher,
+    repositorySearchApiUrl(input),
+    token,
+    options.signal,
+  );
+  const repositories = arrayValue(response.items).map((item) =>
+    repositorySearchResult(item as GitHubApiRepository),
+  );
+  const uniqueRepositories = new Map(
+    repositories.map((repository) => [repository.canonicalUrl, repository]),
+  );
+
+  return [...uniqueRepositories.values()];
 }
 
 export function extractGitHubRepository(input: string): GitHubRepositoryLocator | null {
@@ -291,8 +340,64 @@ function repoApiUrl(locator: GitHubRepositoryLocator): URL {
   return new URL(`/repos/${locator.owner}/${locator.repo}`, GITHUB_API_URL);
 }
 
+function repositorySearchApiUrl(input: GitHubTrendingSearchInput): URL {
+  const url = new URL("/search/repositories", GITHUB_API_URL);
+  url.searchParams.set("q", repositorySearchQuery(input));
+  url.searchParams.set("sort", "stars");
+  url.searchParams.set("order", "desc");
+  url.searchParams.set("per_page", String(input.maxResults));
+
+  return url;
+}
+
 function readmeApiUrl(locator: GitHubRepositoryLocator): URL {
   return new URL(`/repos/${locator.owner}/${locator.repo}/readme`, GITHUB_API_URL);
+}
+
+function repositorySearchQuery(input: GitHubTrendingSearchInput): string {
+  const terms = [
+    ...input.keywords.map((keyword) => keyword.trim()).filter((keyword) => keyword !== ""),
+    ...input.topics
+      .map((topic) => topic.trim())
+      .filter((topic) => topic !== "")
+      .map((topic) => `topic:${topic}`),
+    "archived:false",
+  ];
+
+  if (input.keywords.length > 0) {
+    terms.push("in:name,description,readme");
+  }
+
+  if (input.minStars !== undefined) {
+    terms.push(`stars:>=${input.minStars}`);
+  }
+
+  if (input.pushedAfter !== undefined) {
+    terms.push(`pushed:>=${formatGitHubDate(input.pushedAfter)}`);
+  }
+
+  return terms.join(" ");
+}
+
+function repositorySearchResult(repository: GitHubApiRepository): GitHubRepositorySearchResult {
+  const owner = requiredString(repository.owner?.login, "owner.login");
+  const name = requiredString(repository.name, "name");
+  const url = requiredString(repository.html_url, "html_url");
+
+  return {
+    owner,
+    name,
+    fullName: stringValue(repository.full_name) ?? `${owner}/${name}`,
+    url,
+    description: stringValue(repository.description),
+    stars: numberValue(repository.stargazers_count, "stargazers_count"),
+    forks: numberValue(repository.forks_count, "forks_count"),
+    primaryLanguage: stringValue(repository.language),
+    lastUpdatedAt: dateValue(repository.updated_at),
+    pushedAt: dateValue(repository.pushed_at),
+    topics: stringArrayValue(repository.topics),
+    canonicalUrl: `https://github.com/${owner}/${name}`,
+  };
 }
 
 function normalizeLocator(owner: string, repo: string): GitHubRepositoryLocator | null {
@@ -340,6 +445,10 @@ function stringValue(value: unknown): string | null {
   return trimmed.length === 0 ? null : trimmed;
 }
 
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
 function numberValue(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new GitHubRepoFetchError(`GitHub API response has invalid ${field}.`, "PARSE_ERROR");
@@ -357,6 +466,14 @@ function dateValue(value: unknown): Date | null {
 
   const date = new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatGitHubDate(date: Date): string {
+  const yyyy = date.getUTCFullYear().toString().padStart(4, "0");
+  const mm = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd = date.getUTCDate().toString().padStart(2, "0");
+
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function stringArrayValue(value: unknown): string[] {
