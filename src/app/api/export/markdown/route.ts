@@ -7,7 +7,7 @@ export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
     const result = await exportMarkdownForDay({
-      date: searchParams.get("date") ?? "",
+      ...Object.fromEntries(searchParams.entries()),
       language: exportLanguageFromSearchParams(searchParams),
     });
 

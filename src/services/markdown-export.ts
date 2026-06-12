@@ -2,6 +2,12 @@ import { ItemKind, Locale, type Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import {
+  exportFilename,
+  filterAndSortExportItems,
+  parseExportItemsQuery,
+  type ExportItemsQueryInput,
+} from "@/services/export-filters";
 
 const exportItemInclude = {
   paper: true,
@@ -14,22 +20,17 @@ const exportItemInclude = {
   },
 } satisfies Prisma.ItemInclude;
 
-const markdownExportSchema = z.object({
-  date: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .refine(isValidDateKey, {
-      message: "Date must be a valid UTC calendar day.",
-    }),
-  language: z.enum(["EN", "ZH"]).default("EN"),
-});
+const markdownExportSchema = z
+  .object({
+    language: z.enum(["EN", "ZH"]).default("EN"),
+  })
+  .passthrough();
 
 type ExportItemRecord = Prisma.ItemGetPayload<{
   include: typeof exportItemInclude;
 }>;
 
-type MarkdownExportInput = z.input<typeof markdownExportSchema>;
+type MarkdownExportInput = ExportItemsQueryInput & z.input<typeof markdownExportSchema>;
 
 export type MarkdownExportResult = {
   date: string;
@@ -41,31 +42,30 @@ export async function exportMarkdownForDay(
   input: MarkdownExportInput,
 ): Promise<MarkdownExportResult> {
   const data = markdownExportSchema.parse(input);
-  const start = new Date(`${data.date}T00:00:00.000Z`);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  const items = await prisma.item.findMany({
-    where: {
-      archived: false,
-      createdAt: {
-        gte: start,
-        lt: end,
-      },
-    },
-    orderBy: {
-      createdAt: "asc",
-    },
-    include: exportItemInclude,
-  });
+  const query = parseExportItemsQuery(input);
+  const items = filterAndSortExportItems(await fetchMarkdownItems(), query);
 
   return {
-    date: data.date,
-    filename: `daily-papers-${data.date}.md`,
-    markdown: renderDailyMarkdown(data.date, data.language, items),
+    date: query.date ?? "filtered",
+    filename: exportFilename("md", query),
+    markdown: renderMarkdownExport(query.date, data.language, items),
   };
 }
 
-function renderDailyMarkdown(
-  date: string,
+async function fetchMarkdownItems(): Promise<ExportItemRecord[]> {
+  return prisma.item.findMany({
+    where: {
+      archived: false,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    include: exportItemInclude,
+  });
+}
+
+function renderMarkdownExport(
+  date: string | undefined,
   language: "EN" | "ZH",
   items: ExportItemRecord[],
 ): string {
@@ -74,7 +74,7 @@ function renderDailyMarkdown(
     (item) => item.kind === ItemKind.REPOSITORY && item.repository !== null,
   );
   const lines = [
-    `# Daily Papers - ${date}`,
+    date === undefined ? "# Daily Papers - Filtered Export" : `# Daily Papers - ${date}`,
     "",
     "## Papers",
     "",
@@ -207,11 +207,6 @@ function formatTags(item: ExportItemRecord): string | null {
 
 function formatDate(date: Date | null): string | null {
   return date === null ? null : date.toISOString().slice(0, 10);
-}
-
-function isValidDateKey(value: string): boolean {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function formatInstallDifficulty(difficulty: string): string {

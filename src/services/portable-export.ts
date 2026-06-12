@@ -1,7 +1,12 @@
 import { ItemKind, Locale, type Prisma } from "@prisma/client";
-import { z } from "zod";
 
 import { prisma } from "@/lib/prisma";
+import {
+  exportFilename,
+  filterAndSortExportItems,
+  parseExportItemsQuery,
+  type ExportItemsQueryInput,
+} from "@/services/export-filters";
 
 const portableExportInclude = {
   paper: true,
@@ -15,18 +20,6 @@ const portableExportInclude = {
   },
 } satisfies Prisma.ItemInclude;
 
-const portableExportSchema = z.object({
-  date: z
-    .string()
-    .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .refine(isValidDateKey, {
-      message: "Date must be a valid UTC calendar day.",
-    })
-    .optional(),
-});
-
-type PortableExportInput = z.input<typeof portableExportSchema>;
 type PortableItemRecord = Prisma.ItemGetPayload<{
   include: typeof portableExportInclude;
 }>;
@@ -120,14 +113,14 @@ export type CsvExportResult = {
 };
 
 export async function exportItemsAsJson(
-  input: PortableExportInput = {},
+  input: ExportItemsQueryInput = {},
 ): Promise<JsonExportResult> {
-  const data = portableExportSchema.parse(input);
-  const items = await fetchPortableItems(data.date);
+  const data = parseExportItemsQuery(input);
+  const items = filterAndSortExportItems(await fetchPortableItems(), data);
   const portableItems = items.map(toPortableItem);
 
   return {
-    filename: exportFilename("json", data.date),
+    filename: exportFilename("json", data),
     payload: {
       exportedAt: new Date().toISOString(),
       date: data.date ?? null,
@@ -137,33 +130,25 @@ export async function exportItemsAsJson(
   };
 }
 
-export async function exportItemsAsCsv(input: PortableExportInput = {}): Promise<CsvExportResult> {
-  const data = portableExportSchema.parse(input);
-  const items = await fetchPortableItems(data.date);
+export async function exportItemsAsCsv(
+  input: ExportItemsQueryInput = {},
+): Promise<CsvExportResult> {
+  const data = parseExportItemsQuery(input);
+  const items = filterAndSortExportItems(await fetchPortableItems(), data);
 
   return {
-    filename: exportFilename("csv", data.date),
+    filename: exportFilename("csv", data),
     csv: renderCsv(items.map(toCsvRow)),
   };
 }
 
-async function fetchPortableItems(date: string | undefined): Promise<PortableItemRecord[]> {
-  const where: Prisma.ItemWhereInput = {
-    archived: false,
-  };
-
-  if (date !== undefined) {
-    const start = new Date(`${date}T00:00:00.000Z`);
-    where.createdAt = {
-      gte: start,
-      lt: new Date(start.getTime() + 24 * 60 * 60 * 1000),
-    };
-  }
-
+async function fetchPortableItems(): Promise<PortableItemRecord[]> {
   return prisma.item.findMany({
-    where,
+    where: {
+      archived: false,
+    },
     orderBy: {
-      createdAt: "asc",
+      createdAt: "desc",
     },
     include: portableExportInclude,
   });
@@ -348,17 +333,6 @@ function noteForLocale(item: PortableItemRecord, locale: Locale) {
   return item.notes.find((note) => note.language === locale) ?? null;
 }
 
-function exportFilename(extension: "json" | "csv", date: string | undefined): string {
-  return date === undefined
-    ? `daily-papers-items.${extension}`
-    : `daily-papers-${date}.${extension}`;
-}
-
 function dateOrNull(date: Date | null): string | null {
   return date === null ? null : date.toISOString();
-}
-
-function isValidDateKey(value: string): boolean {
-  const date = new Date(`${value}T00:00:00.000Z`);
-  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }

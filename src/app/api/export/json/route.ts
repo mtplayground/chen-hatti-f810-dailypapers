@@ -6,9 +6,7 @@ import { exportItemsAsJson } from "@/services/portable-export";
 export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
-    const result = await exportItemsAsJson({
-      date: searchParams.get("date") ?? undefined,
-    });
+    const result = await exportItemsAsJson(Object.fromEntries(searchParams.entries()));
 
     return NextResponse.json(result.payload, {
       status: 200,
