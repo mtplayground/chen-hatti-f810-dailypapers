@@ -2,6 +2,7 @@
 
 import { CalendarDays, Code2, ExternalLink, GitFork, Star, type LucideIcon } from "lucide-react";
 
+import { ItemActions } from "@/components/item-actions";
 import { ItemNotesTagsEditor } from "@/components/item-notes-tags-editor";
 import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardRepository, DashboardSummary, DashboardTag } from "@/services/dashboard";
@@ -106,6 +107,14 @@ export function RepositoryCard({
       </ReadMoreDetails>
 
       <footer className="grid gap-3">
+        <ItemActions
+          archived={repository.archived}
+          copyText={repositoryCopyText(repository, summary)}
+          important={repository.important}
+          itemId={repository.id}
+          openHref={repository.url}
+          openLabel="Open GitHub"
+        />
         <ItemMeta tags={repository.tags} />
         <div className="flex flex-wrap gap-2">
           <ItemLink href={repository.url} label="Repository" />
@@ -204,6 +213,29 @@ function selectSummary(summaries: DashboardSummary[], language: ItemLanguage) {
     summaries[0] ??
     null
   );
+}
+
+function repositoryCopyText(
+  repository: DashboardRepository,
+  summary: DashboardSummary | null,
+): string {
+  const lines = [
+    `${repository.owner}/${repository.name}`,
+    repository.description,
+    `Stars: ${repository.stars.toLocaleString()} · Forks: ${repository.forks.toLocaleString()}`,
+    repository.primaryLanguage !== null ? `Language: ${repository.primaryLanguage}` : null,
+    repository.techStack.length > 0 ? `Tech stack: ${repository.techStack.join(", ")}` : null,
+    summary !== null ? `Summary (${summary.language}): ${summary.summary}` : null,
+    summary !== null && summary.keyPoints.length > 0
+      ? `Key points:\n${summary.keyPoints.map((point) => `- ${point}`).join("\n")}`
+      : null,
+    repository.researchValueNotes !== null
+      ? `Research value: ${repository.researchValueNotes}`
+      : null,
+    repository.url,
+  ];
+
+  return lines.filter((line): line is string => line !== null && line.trim() !== "").join("\n\n");
 }
 
 function formatOptionalDate(date: string | null): string | null {
