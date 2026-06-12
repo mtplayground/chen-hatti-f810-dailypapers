@@ -4,6 +4,7 @@ import test from "node:test";
 import { ItemKind, Locale } from "@prisma/client";
 
 import { prisma } from "../src/lib/prisma";
+import { fetchHuggingFaceDailyTopPapers } from "../src/services/huggingface-daily-fetch";
 import { ingestBatchUrls, type BatchIngestUrlResult } from "../src/services/ingestion";
 import { exportMarkdownForDay } from "../src/services/markdown-export";
 import { listNotes, upsertNote } from "../src/services/notes";
@@ -13,7 +14,8 @@ const PAPER_URL = "https://arxiv.org/abs/9912.33001v1";
 const PAPER_CANONICAL_URL = "https://arxiv.org/abs/9912.33001";
 const REPOSITORY_URL = "https://github.com/mctai/e2e-repo-issue-33";
 const TAG_SLUG = "issue-33-workflow";
-const TEST_CANONICAL_URLS = [PAPER_CANONICAL_URL, REPOSITORY_URL];
+const HF_PAPER_CANONICAL_URL = "https://arxiv.org/abs/9912.33072";
+const TEST_CANONICAL_URLS = [PAPER_CANONICAL_URL, REPOSITORY_URL, HF_PAPER_CANONICAL_URL];
 
 type SuccessfulBatchResult = Extract<BatchIngestUrlResult, { ok: true }>;
 
@@ -98,6 +100,86 @@ void test("example workflow ingests pasted URLs, summarizes, edits notes/tags, a
   }
 });
 
+void test("Hugging Face daily fetch persists top papers, stores source analysis, and dedupes", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockHuggingFaceDailyFetch;
+
+  try {
+    await cleanupWorkflowRows();
+
+    const fetched = await fetchHuggingFaceDailyTopPapers({
+      maxResults: 1,
+      important: true,
+      autoSummarize: false,
+    });
+
+    assert.equal(fetched.fetched, 1);
+    assert.equal(fetched.ingested, 1);
+    assert.equal(fetched.skipped, 0);
+    const ingested = fetched.results[0];
+    assert.ok(ingested);
+    assert.equal(ingested.status, "INGESTED");
+
+    const item = await prisma.item.findUnique({
+      where: {
+        canonicalUrl: HF_PAPER_CANONICAL_URL,
+      },
+      include: {
+        paper: true,
+      },
+    });
+    assert.ok(item);
+    assert.equal(item.important, true);
+    const paper = item.paper;
+    assert.ok(paper);
+    assert.equal(paper.title, "HF Daily Test Paper");
+    assert.equal(paper.arxivId, "9912.33072");
+    assert.equal(paper.landingUrl, HF_PAPER_CANONICAL_URL);
+    assert.equal(paper.pdfUrl, "https://arxiv.org/pdf/9912.33072");
+    assert.equal(paper.abstract, "HF daily paper abstract for persistence testing.");
+    const analysis = paper.analysis as Record<string, unknown> | null | undefined;
+    assert.ok(analysis);
+    assert.equal(analysis["source"], "huggingface-daily");
+    assert.equal(analysis["hfLikes"], 99);
+    assert.equal(analysis["hfRank"], 1);
+
+    const duplicate = await fetchHuggingFaceDailyTopPapers({
+      maxResults: 1,
+      autoSummarize: false,
+    });
+    assert.equal(duplicate.ingested, 0);
+    assert.equal(duplicate.skipped, 1);
+    assert.equal(duplicate.results[0]?.status, "SKIPPED_EXISTING");
+  } finally {
+    globalThis.fetch = originalFetch;
+    await cleanupWorkflowRows();
+  }
+});
+
+void test("Hugging Face daily fetch supports dryRun without persisting", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockHuggingFaceDailyFetch;
+
+  try {
+    await cleanupWorkflowRows();
+    const fetched = await fetchHuggingFaceDailyTopPapers({ maxResults: 1, dryRun: true });
+
+    assert.equal(fetched.fetched, 1);
+    assert.equal(fetched.ingested, 0);
+    assert.equal(fetched.skipped, 1);
+    assert.equal(fetched.results[0]?.status, "DRY_RUN");
+    const itemCount = await prisma.item.count({
+      where: {
+        canonicalUrl: HF_PAPER_CANONICAL_URL,
+      },
+    });
+    assert.equal(itemCount, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await cleanupWorkflowRows();
+  }
+});
+
 function isSuccessfulBatchResult(result: BatchIngestUrlResult): result is SuccessfulBatchResult {
   return result.ok;
 }
@@ -135,6 +217,48 @@ async function mockWorkflowFetch(input: string | URL | Request, init?: RequestIn
   }
 
   throw new Error(`Unexpected workflow E2E fetch: ${url.toString()}`);
+}
+
+function mockHuggingFaceDailyFetch(input: string | URL | Request): Promise<Response> {
+  const url = requestUrl(input);
+
+  if (url.hostname !== "huggingface.co" || url.pathname !== "/papers") {
+    throw new Error(`Unexpected Hugging Face daily fetch request: ${url.toString()}`);
+  }
+
+  return Promise.resolve(
+    new Response(huggingFaceDailyPapersHtml(), {
+      headers: { "content-type": "text/html" },
+    }),
+  );
+}
+
+function huggingFaceDailyPapersHtml(): string {
+  const props = JSON.stringify({
+    dailyPapers: [
+      {
+        paper: {
+          id: "9912.33072v1",
+          title: "HF Daily Test Paper",
+          authors: [{ name: "Ada Lovelace" }, { name: "Grace Hopper" }],
+          summary: "HF daily paper abstract for persistence testing.",
+          upvotes: 99,
+          publishedAt: "2026-06-12T00:00:00.000Z",
+          submittedOnDailyAt: "2026-06-12T12:00:00.000Z",
+          ai_summary: "Short HF summary.",
+          ai_keywords: ["daily", "papers"],
+          projectPage: "https://example.test/hf-paper",
+          githubRepo: "https://github.com/example/hf-paper",
+        },
+        title: "HF Daily Test Paper",
+        summary: "HF daily paper abstract for persistence testing.",
+      },
+    ],
+  })
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;");
+
+  return `<html><body><div class="SVELTE_HYDRATER" data-target="DailyPapers" data-props="${props}"></div></body></html>`;
 }
 
 function requestUrl(input: string | URL | Request): URL {
