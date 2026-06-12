@@ -5,14 +5,28 @@
   --color-ink: #18201c;
   --color-muted: #5c665f;
   --color-surface: #f7f3e8;
+  --color-shell: #fbf8ef;
   --color-panel: #fffdf7;
   --color-border: #d8d0c0;
   --color-accent: #2f6f5e;
+  --color-accent-ink: #ffffff;
 }
 
 :root {
   color-scheme: light;
   --radius-control: 8px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-ink: #e9eee7;
+  --color-muted: #a7b1aa;
+  --color-surface: #101512;
+  --color-shell: #151c18;
+  --color-panel: #18211c;
+  --color-border: #2c3831;
+  --color-accent: #7ccdb4;
+  --color-accent-ink: #0d1511;
 }
 
 * {
@@ -29,8 +43,26 @@ body {
   margin: 0;
   font-family: var(--font-sans);
   background: var(--color-surface);
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 a {
   color: inherit;
+  text-decoration: none;
+}
+
+button,
+a {
+  border-radius: var(--radius-control);
+}
+
+button {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
 }
