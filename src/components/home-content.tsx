@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AddItemPanel } from "@/components/add-item-panel";
+import { ArxivLatestPapersFetchPanel } from "@/components/arxiv-latest-papers-fetch-panel";
 import {
   DashboardControlBar,
   defaultDashboardControls,
@@ -183,6 +184,20 @@ export function HomeContent({ dashboard }: HomeContentProps) {
         }}
         resultCount={visibleItems}
         totalCount={totalItems}
+      />
+
+      <ArxivLatestPapersFetchPanel
+        onFetchSuccess={({ customKeywords, field }) => {
+          setControls((currentControls) => ({
+            ...currentControls,
+            field,
+            topic:
+              field === ARXIV_CUSTOM_FIELD_ID ? customKeywords.join(", ") : currentControls.topic,
+            type: "PAPER",
+            sort: "relevance",
+          }));
+          setFieldFetchStatus(null);
+        }}
       />
 
       <ExportControlsPanel
