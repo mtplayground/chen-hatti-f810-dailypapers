@@ -63,6 +63,12 @@ export type ArxivPaperMetadata = {
   canonicalUrl: string;
 };
 
+export type ArxivKeywordSearchInput = {
+  keywords: string[];
+  maxResults: number;
+  submittedAfter?: Date;
+};
+
 export class ArxivFetchError extends Error {
   constructor(
     message: string,
@@ -71,6 +77,46 @@ export class ArxivFetchError extends Error {
     super(message);
     this.name = "ArxivFetchError";
   }
+}
+
+export async function searchArxivPapersByKeywords(
+  input: ArxivKeywordSearchInput,
+  options: { fetcher?: FetchLike; signal?: AbortSignal } = {},
+): Promise<ArxivPaperMetadata[]> {
+  const apiUrl = new URL(ARXIV_API_URL);
+  apiUrl.searchParams.set("search_query", arxivKeywordQuery(input.keywords, input.submittedAfter));
+  apiUrl.searchParams.set("start", "0");
+  apiUrl.searchParams.set("max_results", String(input.maxResults));
+  apiUrl.searchParams.set("sortBy", "submittedDate");
+  apiUrl.searchParams.set("sortOrder", "descending");
+
+  const fetcher = options.fetcher ?? fetch;
+  const requestInit: RequestInit = {
+    headers: {
+      Accept: "application/atom+xml, application/xml;q=0.9, text/xml;q=0.8",
+      "User-Agent": "chen-hatti-f810-dailypapers/0.1 arxiv-keyword-fetcher",
+    },
+  };
+
+  if (options.signal !== undefined) {
+    requestInit.signal = options.signal;
+  }
+
+  const response = await fetcher(apiUrl, requestInit);
+
+  if (!response.ok) {
+    throw new ArxivFetchError(
+      `arXiv keyword search failed with ${response.status} ${response.statusText}.`,
+      "UPSTREAM_ERROR",
+    );
+  }
+
+  const feed = parseFeed(await response.text());
+  const entries = feedEntries(feed);
+  const papers = entries.map(entryToSearchMetadata);
+  const uniquePapers = new Map(papers.map((paper) => [paper.arxivId, paper]));
+
+  return [...uniquePapers.values()];
 }
 
 const parser = new XMLParser({
@@ -174,13 +220,31 @@ function parseFeed(xml: string): ArxivApiFeed {
 }
 
 function firstEntry(feed: ArxivApiFeed): ArxivApiEntry | null {
+  return feedEntries(feed)[0] ?? null;
+}
+
+function feedEntries(feed: ArxivApiFeed): ArxivApiEntry[] {
   const entry = feed.feed?.entry;
 
   if (Array.isArray(entry)) {
-    return entry[0] ?? null;
+    return entry;
   }
 
-  return entry ?? null;
+  return entry === undefined ? [] : [entry];
+}
+
+function entryToSearchMetadata(entry: ArxivApiEntry): ArxivPaperMetadata {
+  const entryId = requiredText(entry.id, "id");
+  const arxivId = extractArxivId(entryId);
+
+  if (arxivId === null) {
+    throw new ArxivFetchError(
+      `arXiv API response has an invalid entry id "${entryId}".`,
+      "PARSE_ERROR",
+    );
+  }
+
+  return entryToMetadata(entry, entryId, splitArxivVersion(arxivId));
 }
 
 function entryToMetadata(
@@ -323,6 +387,32 @@ function stripPdfExtension(value: string): string {
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function arxivKeywordQuery(keywords: string[], submittedAfter: Date | undefined): string {
+  const keywordQuery = keywords
+    .map((keyword) => `all:${quoteArxivSearchTerm(keyword)}`)
+    .join(" OR ");
+
+  if (submittedAfter === undefined) {
+    return keywordQuery;
+  }
+
+  return `(${keywordQuery}) AND submittedDate:[${formatArxivDate(submittedAfter)} TO 999912312359]`;
+}
+
+function quoteArxivSearchTerm(value: string): string {
+  return `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+function formatArxivDate(date: Date): string {
+  const yyyy = date.getUTCFullYear().toString().padStart(4, "0");
+  const mm = (date.getUTCMonth() + 1).toString().padStart(2, "0");
+  const dd = date.getUTCDate().toString().padStart(2, "0");
+  const hh = date.getUTCHours().toString().padStart(2, "0");
+  const min = date.getUTCMinutes().toString().padStart(2, "0");
+
+  return `${yyyy}${mm}${dd}${hh}${min}`;
 }
 
 function arrayify<T>(value: T | T[] | null | undefined): T[] {
