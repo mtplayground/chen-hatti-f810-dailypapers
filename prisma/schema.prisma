@@ -19,6 +19,11 @@ enum InstallDifficulty {
   HARD
 }
 
+enum Locale {
+  EN
+  ZH
+}
+
 model Item {
   id           String      @id @default(cuid())
   kind         ItemKind
@@ -30,6 +35,9 @@ model Item {
   updatedAt    DateTime    @updatedAt
   paper        Paper?
   repository   Repository?
+  summaries    Summary[]
+  notes        Note[]
+  tags         ItemTag[]
 
   @@index([kind, archived, important, createdAt])
   @@map("items")
@@ -90,4 +98,64 @@ model Repository {
   @@index([lastUpdatedAt])
   @@index([researchValueScore])
   @@map("repositories")
+}
+
+model Summary {
+  id            String   @id @default(cuid())
+  itemId        String
+  item          Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  language      Locale
+  headline      String?
+  summary       String   @db.Text
+  keyPoints     String[] @default([])
+  generatedBy   String?
+  promptVersion String?
+  generatedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([itemId, language])
+  @@index([language])
+  @@map("summaries")
+}
+
+model Tag {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  nameEn    String
+  nameZh    String?
+  color     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  items     ItemTag[]
+
+  @@index([nameEn])
+  @@map("tags")
+}
+
+model ItemTag {
+  itemId    String
+  tagId     String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([itemId, tagId])
+  @@index([tagId])
+  @@map("item_tags")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  itemId    String
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  language  Locale
+  title     String?
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([itemId, language])
+  @@index([language])
+  @@map("notes")
 }
