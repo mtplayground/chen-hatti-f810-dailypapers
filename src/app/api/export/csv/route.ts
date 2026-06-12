@@ -6,9 +6,7 @@ import { exportItemsAsCsv } from "@/services/portable-export";
 export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
-    const result = await exportItemsAsCsv({
-      date: searchParams.get("date") ?? undefined,
-    });
+    const result = await exportItemsAsCsv(Object.fromEntries(searchParams.entries()));
 
     return new NextResponse(result.csv, {
       status: 200,

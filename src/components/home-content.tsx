@@ -72,8 +72,6 @@ export function HomeContent({ dashboard }: HomeContentProps) {
             </p>
             <div className="flex flex-wrap justify-start gap-2 md:justify-end">
               <AddItemPanel />
-              <ExportLink href="/api/export/json" label="JSON" />
-              <ExportLink href="/api/export/csv" label="CSV" />
             </div>
           </div>
         </div>
@@ -99,6 +97,12 @@ export function HomeContent({ dashboard }: HomeContentProps) {
         totalCount={totalItems}
       />
 
+      <ExportControlsPanel
+        controls={controls}
+        itemLanguage={itemLanguage}
+        resultCount={visibleItems}
+      />
+
       <div className="grid gap-8" id="library">
         {dashboard.days.length === 0 ? (
           <EmptyDashboard />
@@ -118,6 +122,64 @@ export function HomeContent({ dashboard }: HomeContentProps) {
 
       <div className="sr-only" id="exports" />
     </section>
+  );
+}
+
+function ExportControlsPanel({
+  controls,
+  itemLanguage,
+  resultCount,
+}: {
+  controls: DashboardControlState;
+  itemLanguage: ItemLanguage;
+  resultCount: number;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const filteredParams = exportParamsFromControls(controls, itemLanguage);
+  const todayParams = exportParamsFromControls(
+    {
+      ...defaultDashboardControls,
+      date: today,
+    },
+    itemLanguage,
+  );
+
+  return (
+    <section
+      aria-label="Export controls"
+      className="grid gap-4 border border-[var(--color-border)] bg-[var(--color-panel)] p-4 shadow-sm lg:grid-cols-2"
+    >
+      <ExportGroup countLabel="Today" label="Current day" params={todayParams} />
+      <ExportGroup
+        countLabel={`${resultCount} items`}
+        label="Filtered set"
+        params={filteredParams}
+      />
+    </section>
+  );
+}
+
+function ExportGroup({
+  countLabel,
+  label,
+  params,
+}: {
+  countLabel: string;
+  label: string;
+  params: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="text-sm font-semibold">{label}</p>
+        <p className="text-xs font-medium text-[var(--color-muted)]">{countLabel}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <ExportLink href={`/api/export/markdown?${params}`} label="Markdown" />
+        <ExportLink href={`/api/export/json?${params}`} label="JSON" />
+        <ExportLink href={`/api/export/csv?${params}`} label="CSV" />
+      </div>
+    </div>
   );
 }
 
@@ -195,6 +257,38 @@ function ExportLink({ href, label }: { href: string; label: string }) {
       {label}
     </a>
   );
+}
+
+function exportParamsFromControls(
+  controls: DashboardControlState,
+  itemLanguage: ItemLanguage,
+): string {
+  const params = new URLSearchParams({
+    language: itemLanguage,
+    sort: controls.sort,
+  });
+
+  if (controls.query.trim() !== "") {
+    params.set("q", controls.query.trim());
+  }
+
+  if (controls.type !== "ALL") {
+    params.set("type", controls.type);
+  }
+
+  if (controls.date !== "") {
+    params.set("date", controls.date);
+  }
+
+  if (controls.topic.trim() !== "") {
+    params.set("topic", controls.topic.trim());
+  }
+
+  if (controls.minRelevance.trim() !== "") {
+    params.set("minRelevance", controls.minRelevance.trim());
+  }
+
+  return params.toString();
 }
 
 function DailySection({
