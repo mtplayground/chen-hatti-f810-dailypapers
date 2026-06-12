@@ -14,6 +14,7 @@
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "db:migrate": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -38,6 +39,7 @@
     "prettier": "^3.8.4",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "prisma": "^6.19.3",
+    "tsx": "^4.22.4",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.61.0"
   },
