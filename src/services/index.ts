@@ -1,4 +1,5 @@
 export * from "@/services/dashboard";
+export * from "@/services/arxiv-daily-fetch";
 export * from "@/services/ingestion";
 export * from "@/services/items";
 export * from "@/services/llm";
