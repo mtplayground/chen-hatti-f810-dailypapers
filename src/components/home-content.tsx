@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { AddItemPanel } from "@/components/add-item-panel";
@@ -130,9 +130,19 @@ function DashboardDaySection({
     <section className="grid gap-5 border-t border-[var(--color-border)] pt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <h2 className="text-2xl font-semibold">{formatDayLabel(day.date)}</h2>
-        <p className="text-sm font-medium text-[var(--color-muted)]">
-          {day.papers.length + day.repositories.length} items
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-medium text-[var(--color-muted)]">
+            {day.papers.length + day.repositories.length} items
+          </p>
+          <a
+            className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
+            download
+            href={`/api/export/markdown?date=${encodeURIComponent(day.date)}&language=${itemLanguage}`}
+          >
+            <Download aria-hidden="true" size={15} />
+            Markdown
+          </a>
+        </div>
       </div>
 
       <DailySection title="Daily Papers" count={day.papers.length}>
