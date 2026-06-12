@@ -3,6 +3,7 @@ export * from "@/validators/common";
 export * from "@/validators/github";
 export * from "@/validators/ingestion";
 export * from "@/validators/items";
+export * from "@/validators/markdown";
 export * from "@/validators/notes";
 export * from "@/validators/tags";
 export * from "@/validators/web";
