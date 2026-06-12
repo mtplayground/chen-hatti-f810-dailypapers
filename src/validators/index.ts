@@ -1,6 +1,7 @@
 export * from "@/validators/arxiv";
 export * from "@/validators/common";
 export * from "@/validators/github";
+export * from "@/validators/huggingface";
 export * from "@/validators/ingestion";
 export * from "@/validators/items";
 export * from "@/validators/llm";

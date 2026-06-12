@@ -192,3 +192,92 @@ void test("searchGitHubTrendingRepositories builds topic and activity filters", 
   assert.equal(result.canonicalUrl, "https://github.com/openai/agent-kit");
   assert.equal(result.stars, 900);
 });
+
+function huggingFaceDailyPapersHtml(dailyPapers: unknown[]): string {
+  const props = JSON.stringify({ dailyPapers }).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
+
+  return `<html><body><div class="SVELTE_HYDRATER" data-target="DailyPapers" data-props="${props}"></div></body></html>`;
+}
+
+function huggingFaceDailyPaper(input: {
+  id: string;
+  title: string;
+  upvotes: number;
+  authors?: string[];
+  summary?: string;
+  publishedAt?: string;
+}) {
+  return {
+    paper: {
+      id: input.id,
+      title: input.title,
+      authors: (input.authors ?? ["Ada Lovelace"]).map((name) => ({ name })),
+      summary: input.summary ?? `Abstract for ${input.title}.`,
+      upvotes: input.upvotes,
+      publishedAt: input.publishedAt ?? "2026-06-12T00:00:00.000Z",
+      submittedOnDailyAt: "2026-06-12T12:00:00.000Z",
+      ai_summary: `AI summary for ${input.title}.`,
+      ai_keywords: ["agents", "memory"],
+      projectPage: "https://example.test/project",
+      githubRepo: "https://github.com/example/project",
+    },
+    title: input.title,
+    summary: input.summary ?? `Abstract for ${input.title}.`,
+  };
+}
+
+void test("parseHuggingFaceDailyPapersHtml sorts by upvotes and normalizes arXiv ids", async () => {
+  const { parseHuggingFaceDailyPapersHtml } = await import("../src/fetchers/huggingface");
+  const papers = parseHuggingFaceDailyPapersHtml(
+    huggingFaceDailyPapersHtml([
+      huggingFaceDailyPaper({ id: "2606.00001v2", title: "Lower attention", upvotes: 5 }),
+      huggingFaceDailyPaper({ id: "2606.00002", title: "Higher attention", upvotes: 42 }),
+    ]),
+    "https://huggingface.co/papers",
+  );
+
+  assert.equal(papers.length, 2);
+  const firstPaper = papers[0];
+  const secondPaper = papers[1];
+  assert.ok(firstPaper);
+  assert.ok(secondPaper);
+  assert.equal(firstPaper.title, "Higher attention");
+  assert.equal(firstPaper.hfLikes, 42);
+  assert.equal(firstPaper.hfRank, 1);
+  assert.equal(firstPaper.arxivId, "2606.00002");
+  assert.equal(firstPaper.canonicalUrl, "https://arxiv.org/abs/2606.00002");
+  assert.equal(firstPaper.pdfUrl, "https://arxiv.org/pdf/2606.00002");
+  assert.deepEqual(firstPaper.authors, ["Ada Lovelace"]);
+  assert.deepEqual(firstPaper.hfKeywords, ["agents", "memory"]);
+  assert.equal(secondPaper.arxivId, "2606.00001");
+  assert.equal(secondPaper.version, "v2");
+});
+
+void test("fetchHuggingFaceDailyPapers fetches the daily page and applies maxResults", async () => {
+  const { fetchHuggingFaceDailyPapers } = await import("../src/fetchers/huggingface");
+  const seenRequests: string[] = [];
+  const papers = await fetchHuggingFaceDailyPapers(
+    { maxResults: 1 },
+    {
+      fetcher: async (input, init) => {
+        seenRequests.push(String(input));
+        const headers = init?.headers as Record<string, string>;
+        assert.match(headers["User-Agent"] ?? "", /huggingface-daily-papers-fetcher/);
+
+        return new Response(
+          huggingFaceDailyPapersHtml([
+            huggingFaceDailyPaper({ id: "2606.00003", title: "Top", upvotes: 10 }),
+            huggingFaceDailyPaper({ id: "2606.00004", title: "Second", upvotes: 8 }),
+          ]),
+          { headers: { "content-type": "text/html" } },
+        );
+      },
+    },
+  );
+
+  assert.deepEqual(seenRequests, ["https://huggingface.co/papers"]);
+  assert.equal(papers.length, 1);
+  const paper = papers[0];
+  assert.ok(paper);
+  assert.equal(paper.title, "Top");
+});
