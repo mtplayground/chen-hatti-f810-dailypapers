@@ -1,50 +1,74 @@
-# Architecture Plan
+Architecture plan for issues #71-#79
 
-## Product Scope
+Context
+- Product: chen-hatti-f810-dailypapers, a Next.js 16 App Router dashboard for daily research papers and GitHub repositories.
+- Persistence remains PostgreSQL via Prisma. Existing Item/Paper/Repository/Summary/Tag/Note models are sufficient for this delta; new source-specific metadata should live in existing JSON/string array fields unless a later issue explicitly requires schema changes.
+- Existing layering should be preserved: fetchers in src/fetchers, business services in src/services, validation schemas in src/validators, route handlers in src/app/api, UI components in src/components, tests in tests.
 
-Build the repository as a Next.js App Router application for daily tracking of papers and GitHub repositories. The product name should continue to come from GitHub issues and any future `PRODUCT.md`; do not introduce agent names or placeholders.
+Module structure and file organization
+1. Hugging Face Daily Papers fetcher (#71)
+   - Add src/fetchers/huggingface.ts and export it from src/fetchers/index.ts.
+   - Define types such as HuggingFaceDailyPaperMetadata with title, authors, abstract/summary, sourceUrl, canonicalUrl, arxivId, hfLikes, hfRank, publishedAt, pdfUrl/landingUrl where available.
+   - Reuse arXiv helpers from src/fetchers/arxiv.ts for ID extraction/canonical URL normalization. If HF entries include arXiv links, resolve those to existing arXiv metadata when practical.
+   - Add src/validators/huggingface.ts for maxResults and fetch input parsing.
 
-## Module Structure
+2. Hugging Face daily-fetch service (#72)
+   - Add src/services/huggingface-daily-fetch.ts.
+   - Fetch/sort top HF daily papers by attention, default top 5, cap with HUGGINGFACE_DAILY_PAPERS_MAX_RESULTS.
+   - Persist using existing Item + Paper shape. Put source metadata in paper.analysis, e.g. { source: "huggingface-daily", hfLikes, hfRank, huggingFaceUrl, resolvedArxivId }.
+   - Deduplicate by canonicalUrl/arXiv ID before create. Support dryRun and autoSummarize by reusing summarizePaper.
 
-- `src/app`: App Router routes, layouts, route handlers, loading/error boundaries, and server actions where appropriate.
-- `src/components`: Reusable UI components, split by domain (`paper`, `repository`, `dashboard`, `filters`, `export`, `shell`) and low-level primitives.
-- `src/lib`: Shared runtime utilities, environment parsing, date grouping, language helpers, fetch clients, export helpers, and error handling.
-- `src/services`: Data-access and business workflows for papers, repositories, summaries, notes, tags, ingest, search, and scheduled fetches.
-- `src/validators`: Zod schemas for route inputs, import payloads, fetcher outputs, and service boundaries.
-- `src/types`: Shared TypeScript types inferred from Zod and Prisma where useful; avoid duplicate hand-written model shapes.
-- `src/llm`: LLM client abstraction, prompt templates, bilingual summary parsing, retries, and provider-specific adapters.
-- `src/fetchers`: arXiv, GitHub, generic web, and PDF metadata fetchers with normalized result contracts.
-- `src/export`: Markdown, JSON, and CSV export formatters.
-- `prisma`: Prisma schema, migrations, seed script, and generated client integration.
-- `tests`: Unit tests for fetchers, summarization, exports, services, plus end-to-end workflow coverage.
+3. GitHub fastest-growing service (#73)
+   - Add src/services/github-fastest-growing-fetch.ts.
+   - Reuse src/fetchers/github.ts searchGitHubTrendingRepositories/request path. Approximate momentum via created/pushed lookback + stars sort.
+   - Persist/update Repository items using existing Item + Repository shape. No schema change.
+   - Configurable env/defaults: GITHUB_FAST_GROWING_MAX_RESULTS, GITHUB_FAST_GROWING_LOOKBACK_DAYS, GITHUB_FAST_GROWING_CANDIDATE_LIMIT.
+   - Support dryRun and optional autoSummarize.
 
-## Shared Data Model
+4. Unified daily-fetch API (#74)
+   - Add src/app/api/daily-fetch/route.ts.
+   - Accept GET query params and POST JSON body, using a new validator schema in src/validators/daily-fetch.ts.
+   - Run HF Top-5 paper service + GitHub fastest-growing Top-5 service and return { papers, repositories } with per-source fetched/ingested/skipped/failed status details.
+   - Keep existing /api/arxiv/daily-fetch and /api/github/trending-fetch endpoints unchanged for backward compatibility.
 
-- Model content as a common item concept with separate `Paper` and `Repository` tables for source-specific fields.
-- Store bilingual summaries in a related `Summary` model keyed by item type, item id, language, summary style, and generated metadata.
-- Store `Tag` and `Note` as reusable bilingual-aware entities linked to either papers or repositories.
-- Track ingestion provenance with source URL, canonical URL, fetch status, dedupe keys, timestamps, archive/important flags, and error fields.
-- Keep Prisma as the database source of truth and derive API/service types from Prisma plus Zod validation at boundaries.
+5. Env vars and README (#75)
+   - Update .env.example and README.md with the new HF and fastest-growing GitHub settings.
+   - Clarify that GITHUB_TOKEN remains required for GitHub API calls.
+   - Describe /api/daily-fetch as the preferred combined daily source while documenting legacy endpoints.
 
-## Issue Dependencies
+6. arXiv topic/field presets (#76)
+   - Add src/services/arxiv-topic-presets.ts or src/config/arxiv-topic-presets.ts.
+   - Shared FieldPreset type: id, labelEn, labelZh, keywords, description.
+   - Presets: LLM/Agents, Computer Vision, Robotics, NLP, Systems, Custom.
+   - Keep this independent of fetch logic so UI and service tests can consume the same mapping.
 
-- Issues 1-4 establish the application shell, Tailwind, linting, TypeScript, dark mode, responsiveness, and language toggle scaffolding.
-- Issues 3-8 establish persistence: PostgreSQL, Prisma, data models, validation, service layer, and seed data.
-- Issues 9-13 implement ingestion sources and endpoints: arXiv, GitHub repositories, generic web/PDF metadata, batch URL import, and Markdown import.
-- Issues 14-17 add summarization: LLM abstraction, paper/repo summary endpoints, and automatic summarization on ingest.
-- Issues 18-26 build the primary user workflow: dashboard, cards, details, add-item UI, search/filter/sort, notes/tags, and item actions.
-- Issues 27-29 implement export formats and UI controls.
-- Issues 30-31 add scheduled or manual discovery jobs for arXiv keywords and GitHub trending.
-- Issues 32-34 harden the product with unit tests, E2E coverage, error states, loading/empty states, and responsive review.
-- Issue 35 finalizes README and run documentation after implementation details stabilize.
+7. Dashboard field switcher (#77)
+   - Extend src/components/dashboard-control-bar.tsx control state with selected field preset.
+   - Update filtering in src/components/home-content.tsx to match preset keywords against paper tags/topics/abstract/summary/relevance notes where available.
+   - Label the UI "Latest Top Papers by Field".
+   - Avoid breaking existing query/type/date/topic/relevance/sort controls.
 
-## Key Design Decisions
+8. arXiv latest-papers fetch panel (#78)
+   - Add/extend a dashboard panel component, likely near AddItemPanel, for field preset, maxResults, autoSummarize and POST /api/arxiv/daily-fetch.
+   - Send preset keywords from shared topic config. Show fetched/ingested/skipped/failed counts and refresh the dashboard on success.
+   - Keep failure states explicit and user-readable.
 
-- Use server-first Next.js App Router patterns for data loading and mutations; only use client components for interactive UI state.
-- Centralize all database writes through services so ingestion, summarization, UI edits, imports, and scheduled jobs share dedupe and validation behavior.
-- Normalize fetcher outputs before persistence so source-specific parsing does not leak into UI components or export code.
-- Keep bilingual support explicit with `en` and `zh` language fields or rows, not ad hoc string suffixes in UI logic.
-- Make summarization provider-swappable behind a small interface so tests can use deterministic fakes.
-- Prefer idempotent ingestion endpoints with canonical URL and source-specific IDs to avoid duplicate papers or repositories.
-- Build exports from service-layer DTOs rather than UI components to keep formats stable and testable.
-- Add focused tests alongside each feature with broader E2E coverage once the ingest-to-summary-to-export workflow exists.
+9. Tests (#79)
+   - Extend tests/fetchers.test.ts for HF parsing, sorting by likes/upvotes, and arXiv ID resolution.
+   - Add service tests for GitHub fastest-growing candidate selection and persistence/dryRun behavior using mocked fetch.
+   - Add tests for topic preset keyword mapping and fetch-panel payload construction/filter state where feasible.
+   - Keep existing node --import tsx --test test runner.
+
+Dependencies between issues
+- #71 is prerequisite for #72.
+- #72 and #73 are prerequisites for #74.
+- #74 is prerequisite for #75 docs/API examples.
+- #76 is prerequisite for #77 and #78.
+- #79 depends on all implementation issues.
+
+Key design decisions
+- Do not add new database tables for HF/GitHub ranking metadata; use Paper.analysis JSON and existing Repository fields to honor "No schema change" where stated.
+- Keep fetchers pure and easily mockable: external HTTP parsing belongs in fetchers; persistence belongs in services.
+- Preserve existing canonical/dedup rules by normalizing arXiv IDs and GitHub repository URLs before writes.
+- Combined daily-fetch should aggregate per-source errors instead of failing the whole request when one source fails.
+- UI additions should reuse existing language/theme/control patterns and avoid auth or object-storage assumptions.
