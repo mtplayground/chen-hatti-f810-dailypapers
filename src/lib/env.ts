@@ -1,4 +1,5 @@
 export type RequiredEnvKey = "DATABASE_URL" | "LLM_API_KEY" | "GITHUB_TOKEN";
+export type OptionalEnvKey = "LLM_BASE_URL" | "LLM_MODEL" | "LLM_TEMPERATURE" | "LLM_TIMEOUT_MS";
 export type AppEnv = Record<RequiredEnvKey, string>;
 
 export function getRequiredEnv(key: RequiredEnvKey): string {
@@ -6,6 +7,16 @@ export function getRequiredEnv(key: RequiredEnvKey): string {
 
   if (value === undefined || value.trim() === "") {
     throw new Error(`Missing required environment variable: ${key}`);
+  }
+
+  return value;
+}
+
+export function getOptionalEnv(key: OptionalEnvKey): string | undefined {
+  const value = process.env[key];
+
+  if (value === undefined || value.trim() === "") {
+    return undefined;
   }
 
   return value;
