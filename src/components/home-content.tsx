@@ -70,7 +70,11 @@ export function HomeContent({ dashboard }: HomeContentProps) {
             <p className="text-base leading-7 text-[var(--color-muted)] md:text-right">
               {messages.home.summary(totalItems)}
             </p>
-            <AddItemPanel />
+            <div className="flex flex-wrap justify-start gap-2 md:justify-end">
+              <AddItemPanel />
+              <ExportLink href="/api/export/json" label="JSON" />
+              <ExportLink href="/api/export/csv" label="CSV" />
+            </div>
           </div>
         </div>
       </div>
@@ -134,14 +138,12 @@ function DashboardDaySection({
           <p className="text-sm font-medium text-[var(--color-muted)]">
             {day.papers.length + day.repositories.length} items
           </p>
-          <a
-            className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
-            download
+          <ExportLink
             href={`/api/export/markdown?date=${encodeURIComponent(day.date)}&language=${itemLanguage}`}
-          >
-            <Download aria-hidden="true" size={15} />
-            Markdown
-          </a>
+            label="Markdown"
+          />
+          <ExportLink href={`/api/export/json?date=${encodeURIComponent(day.date)}`} label="JSON" />
+          <ExportLink href={`/api/export/csv?date=${encodeURIComponent(day.date)}`} label="CSV" />
         </div>
       </div>
 
@@ -179,6 +181,19 @@ function DashboardDaySection({
         )}
       </DailySection>
     </section>
+  );
+}
+
+function ExportLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
+      download
+      href={href}
+    >
+      <Download aria-hidden="true" size={15} />
+      {label}
+    </a>
   );
 }
 
