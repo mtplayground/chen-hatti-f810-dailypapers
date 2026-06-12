@@ -1,3 +1,4 @@
+export * from "@/services/dashboard";
 export * from "@/services/ingestion";
 export * from "@/services/items";
 export * from "@/services/llm";

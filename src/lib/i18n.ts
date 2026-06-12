@@ -19,8 +19,9 @@ export const messages = {
     },
     home: {
       eyebrow: "Today",
-      title: "Research queue",
-      summary: "0 items queued for review.",
+      title: "Daily Papers",
+      summary: (count: number) => `${count} saved items, grouped today-first.`,
+      statsLabel: "Dashboard totals",
       stats: {
         papers: "Papers",
         repositories: "Repositories",
@@ -49,8 +50,9 @@ export const messages = {
     },
     home: {
       eyebrow: "今日",
-      title: "研究队列",
-      summary: "当前待阅读 0 项。",
+      title: "Daily Papers",
+      summary: (count: number) => `共 ${count} 项，按日期从今日开始分组。`,
+      statsLabel: "仪表盘统计",
       stats: {
         papers: "论文",
         repositories: "仓库",
