@@ -71,8 +71,10 @@ export type DashboardRepository = {
   forks: number;
   primaryLanguage: string | null;
   lastUpdatedAt: string | null;
+  readme: string | null;
   techStack: string[];
   installDifficulty: string;
+  installNotes: string | null;
   researchValueScore: number | null;
   researchValueNotes: string | null;
   summaries: DashboardSummary[];
@@ -204,8 +206,10 @@ function toDashboardRepository(item: DashboardItemRecord): DashboardRepository {
     forks: repository.forks,
     primaryLanguage: repository.primaryLanguage,
     lastUpdatedAt: dateOrNull(repository.lastUpdatedAt),
+    readme: repository.readme,
     techStack: repository.techStack,
     installDifficulty: repository.installDifficulty,
+    installNotes: repository.installNotes,
     researchValueScore: repository.researchValueScore,
     researchValueNotes: repository.researchValueNotes,
     summaries: item.summaries.map(toDashboardSummary),

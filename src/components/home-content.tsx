@@ -1,16 +1,11 @@
 "use client";
 
-import { ExternalLink, FileText, GitFork, Star } from "lucide-react";
+import { FileText } from "lucide-react";
 
 import { useLanguage } from "@/components/language-provider";
 import { PaperCard } from "@/components/paper-card";
-import type {
-  DashboardData,
-  DashboardDay,
-  DashboardRepository,
-  DashboardSummary,
-  DashboardTag,
-} from "@/services/dashboard";
+import { RepositoryCard } from "@/components/repository-card";
+import type { DashboardData, DashboardDay } from "@/services/dashboard";
 
 type HomeContentProps = {
   dashboard: DashboardData;
@@ -103,7 +98,7 @@ function DashboardDaySection({
         ) : (
           <div className="grid gap-3">
             {day.repositories.map((repository) => (
-              <RepositoryRow
+              <RepositoryCard
                 itemLanguage={itemLanguage}
                 key={repository.id}
                 repository={repository}
@@ -138,93 +133,6 @@ function DailySection({
   );
 }
 
-function RepositoryRow({
-  itemLanguage,
-  repository,
-}: {
-  itemLanguage: ItemLanguage;
-  repository: DashboardRepository;
-}) {
-  const summary = selectSummary(repository.summaries, itemLanguage);
-  const description = summary?.summary ?? repository.description ?? "No summary available yet.";
-
-  return (
-    <article className="grid gap-3 border border-[var(--color-border)] bg-[var(--color-panel)] p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <p className="text-xs font-semibold tracking-[0.08em] text-[var(--color-muted)] uppercase">
-            {repository.primaryLanguage ?? "Repository"}
-          </p>
-          <h4 className="text-lg font-semibold">
-            {summary?.headline ?? `${repository.owner}/${repository.name}`}
-          </h4>
-          <p className="text-sm text-[var(--color-muted)]">
-            Updated {formatOptionalDate(repository.lastUpdatedAt) ?? "unknown"}
-          </p>
-        </div>
-        <ItemScore label="Value" score={repository.researchValueScore} />
-      </div>
-
-      <p className="line-clamp-3 text-sm leading-6 text-[var(--color-muted)]">{description}</p>
-      <div className="flex flex-wrap gap-3 text-sm text-[var(--color-muted)]">
-        <span className="inline-flex items-center gap-1">
-          <Star aria-hidden="true" size={15} /> {repository.stars}
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <GitFork aria-hidden="true" size={15} /> {repository.forks}
-        </span>
-        <span>{repository.installDifficulty}</span>
-      </div>
-      <ItemMeta tags={repository.tags} />
-      <div className="flex flex-wrap gap-2">
-        <ItemLink href={repository.url} label="Repository" />
-      </div>
-    </article>
-  );
-}
-
-function ItemScore({ label, score }: { label: string; score: number | null }) {
-  return (
-    <div className="min-w-20 border border-[var(--color-border)] px-3 py-2 text-center">
-      <p className="text-lg font-semibold">{score ?? "-"}</p>
-      <p className="text-xs font-medium text-[var(--color-muted)]">{label}</p>
-    </div>
-  );
-}
-
-function ItemMeta({ tags }: { tags: DashboardTag[] }) {
-  if (tags.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="flex flex-wrap gap-2">
-      {tags.map((tag) => (
-        <span
-          className="rounded-full border border-[var(--color-border)] px-2 py-1 text-xs font-medium text-[var(--color-muted)]"
-          key={tag.slug}
-        >
-          {tag.nameEn}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function ItemLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a
-      className="inline-flex min-h-9 items-center gap-2 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)]"
-      href={href}
-      rel="noreferrer"
-      target="_blank"
-    >
-      <ExternalLink aria-hidden="true" size={15} />
-      {label}
-    </a>
-  );
-}
-
 function EmptyDashboard() {
   return (
     <div className="grid min-h-64 place-items-center border border-dashed border-[var(--color-border)] bg-[var(--color-panel)] p-8 text-center">
@@ -247,15 +155,6 @@ function EmptySection({ label }: { label: string }) {
   );
 }
 
-function selectSummary(summaries: DashboardSummary[], language: ItemLanguage) {
-  return (
-    summaries.find((summary) => summary.language === language) ??
-    summaries.find((summary) => summary.language === "EN") ??
-    summaries[0] ??
-    null
-  );
-}
-
 function formatDayLabel(date: string): string {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -267,15 +166,4 @@ function formatDayLabel(date: string): string {
     dateStyle: "full",
     timeZone: "UTC",
   }).format(new Date(`${date}T00:00:00.000Z`));
-}
-
-function formatOptionalDate(date: string | null): string | null {
-  if (date === null) {
-    return null;
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeZone: "UTC",
-  }).format(new Date(date));
 }
