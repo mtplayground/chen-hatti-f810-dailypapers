@@ -2,15 +2,18 @@
 
 import { BookOpen, CalendarDays, ExternalLink, Link2, type LucideIcon } from "lucide-react";
 
+import { ItemNotesTagsEditor } from "@/components/item-notes-tags-editor";
 import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardPaper, DashboardSummary, DashboardTag } from "@/services/dashboard";
 
 type ItemLanguage = "EN" | "ZH";
 
 export function PaperCard({
+  availableTags,
   itemLanguage,
   paper,
 }: {
+  availableTags: DashboardTag[];
   itemLanguage: ItemLanguage;
   paper: DashboardPaper;
 }) {
@@ -106,6 +109,13 @@ export function PaperCard({
             <ItemLink href={link.href} key={`${link.label}:${link.href}`} label={link.label} />
           ))}
         </div>
+        <ItemNotesTagsEditor
+          assignedTags={paper.tags}
+          availableTags={availableTags}
+          itemId={paper.id}
+          itemLanguage={itemLanguage}
+          notes={paper.notes}
+        />
       </footer>
     </article>
   );

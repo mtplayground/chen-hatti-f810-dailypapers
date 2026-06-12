@@ -102,7 +102,12 @@ export function HomeContent({ dashboard }: HomeContentProps) {
           <EmptyFilteredDashboard />
         ) : (
           visibleDashboard.days.map((day) => (
-            <DashboardDaySection day={day} itemLanguage={itemLanguage} key={day.date} />
+            <DashboardDaySection
+              availableTags={dashboard.availableTags}
+              day={day}
+              itemLanguage={itemLanguage}
+              key={day.date}
+            />
           ))
         )}
       </div>
@@ -113,9 +118,11 @@ export function HomeContent({ dashboard }: HomeContentProps) {
 }
 
 function DashboardDaySection({
+  availableTags,
   day,
   itemLanguage,
 }: {
+  availableTags: DashboardTag[];
   day: DashboardDay;
   itemLanguage: ItemLanguage;
 }) {
@@ -134,7 +141,12 @@ function DashboardDaySection({
         ) : (
           <div className="grid gap-3">
             {day.papers.map((paper) => (
-              <PaperCard itemLanguage={itemLanguage} key={paper.id} paper={paper} />
+              <PaperCard
+                availableTags={availableTags}
+                itemLanguage={itemLanguage}
+                key={paper.id}
+                paper={paper}
+              />
             ))}
           </div>
         )}
@@ -147,6 +159,7 @@ function DashboardDaySection({
           <div className="grid gap-3">
             {day.repositories.map((repository) => (
               <RepositoryCard
+                availableTags={availableTags}
                 itemLanguage={itemLanguage}
                 key={repository.id}
                 repository={repository}
@@ -242,7 +255,7 @@ function applyDashboardControls(
     .filter((row) => matchesMinRelevance(row, controls.minRelevance))
     .sort((left, right) => compareRows(left, right, controls.sort));
 
-  return groupRows(rows, dashboard.stats.notes);
+  return groupRows(rows, dashboard.stats.notes, dashboard.availableTags);
 }
 
 function flattenDashboard(dashboard: DashboardData): DashboardItemRow[] {
@@ -266,7 +279,11 @@ function flattenDashboard(dashboard: DashboardData): DashboardItemRow[] {
   ]);
 }
 
-function groupRows(rows: DashboardItemRow[], noteCount: number): DashboardData {
+function groupRows(
+  rows: DashboardItemRow[],
+  noteCount: number,
+  availableTags: DashboardTag[],
+): DashboardData {
   const grouped = new Map<string, DashboardDay>();
   let papers = 0;
   let repositories = 0;
@@ -296,6 +313,7 @@ function groupRows(rows: DashboardItemRow[], noteCount: number): DashboardData {
 
   return {
     days: [...grouped.values()],
+    availableTags,
     stats: {
       notes: noteCount,
       papers,

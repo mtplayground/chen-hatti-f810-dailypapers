@@ -2,15 +2,18 @@
 
 import { CalendarDays, Code2, ExternalLink, GitFork, Star, type LucideIcon } from "lucide-react";
 
+import { ItemNotesTagsEditor } from "@/components/item-notes-tags-editor";
 import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardRepository, DashboardSummary, DashboardTag } from "@/services/dashboard";
 
 type ItemLanguage = "EN" | "ZH";
 
 export function RepositoryCard({
+  availableTags,
   itemLanguage,
   repository,
 }: {
+  availableTags: DashboardTag[];
   itemLanguage: ItemLanguage;
   repository: DashboardRepository;
 }) {
@@ -107,6 +110,13 @@ export function RepositoryCard({
         <div className="flex flex-wrap gap-2">
           <ItemLink href={repository.url} label="Repository" />
         </div>
+        <ItemNotesTagsEditor
+          assignedTags={repository.tags}
+          availableTags={availableTags}
+          itemId={repository.id}
+          itemLanguage={itemLanguage}
+          notes={repository.notes}
+        />
       </footer>
     </article>
   );

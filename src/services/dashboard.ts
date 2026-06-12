@@ -6,6 +6,7 @@ const dashboardItemInclude = {
   paper: true,
   repository: true,
   summaries: true,
+  notes: true,
   tags: {
     include: {
       tag: true,
@@ -25,10 +26,18 @@ export type DashboardSummary = {
 };
 
 export type DashboardTag = {
+  id: string;
   slug: string;
   nameEn: string;
   nameZh: string | null;
   color: string | null;
+};
+
+export type DashboardNote = {
+  language: "EN" | "ZH";
+  title: string | null;
+  content: string;
+  updatedAt: string;
 };
 
 export type DashboardPaper = {
@@ -55,6 +64,7 @@ export type DashboardPaper = {
   relevanceScore: number | null;
   relevanceNotes: string | null;
   summaries: DashboardSummary[];
+  notes: DashboardNote[];
   tags: DashboardTag[];
 };
 
@@ -78,6 +88,7 @@ export type DashboardRepository = {
   researchValueScore: number | null;
   researchValueNotes: string | null;
   summaries: DashboardSummary[];
+  notes: DashboardNote[];
   tags: DashboardTag[];
 };
 
@@ -89,6 +100,7 @@ export type DashboardDay = {
 
 export type DashboardData = {
   days: DashboardDay[];
+  availableTags: DashboardTag[];
   stats: {
     papers: number;
     repositories: number;
@@ -97,7 +109,7 @@ export type DashboardData = {
 };
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [items, notes] = await Promise.all([
+  const [items, noteCount, availableTags] = await Promise.all([
     prisma.item.findMany({
       where: {
         archived: false,
@@ -109,6 +121,11 @@ export async function getDashboardData(): Promise<DashboardData> {
       include: dashboardItemInclude,
     }),
     prisma.note.count(),
+    prisma.tag.findMany({
+      orderBy: {
+        nameEn: "asc",
+      },
+    }),
   ]);
 
   const grouped = new Map<string, DashboardDay>();
@@ -143,10 +160,11 @@ export async function getDashboardData(): Promise<DashboardData> {
 
   return {
     days: [...grouped.values()],
+    availableTags: availableTags.map(toDashboardTag),
     stats: {
       papers: paperCount,
       repositories: repositoryCount,
-      notes,
+      notes: noteCount,
     },
   };
 }
@@ -182,6 +200,7 @@ function toDashboardPaper(item: DashboardItemRecord): DashboardPaper {
     relevanceScore: paper.relevanceScore,
     relevanceNotes: paper.relevanceNotes,
     summaries: item.summaries.map(toDashboardSummary),
+    notes: item.notes.map(toDashboardNote),
     tags: item.tags.map((itemTag) => toDashboardTag(itemTag.tag)),
   };
 }
@@ -213,6 +232,7 @@ function toDashboardRepository(item: DashboardItemRecord): DashboardRepository {
     researchValueScore: repository.researchValueScore,
     researchValueNotes: repository.researchValueNotes,
     summaries: item.summaries.map(toDashboardSummary),
+    notes: item.notes.map(toDashboardNote),
     tags: item.tags.map((itemTag) => toDashboardTag(itemTag.tag)),
   };
 }
@@ -226,8 +246,18 @@ function toDashboardSummary(summary: DashboardItemRecord["summaries"][number]): 
   };
 }
 
+function toDashboardNote(note: DashboardItemRecord["notes"][number]): DashboardNote {
+  return {
+    language: note.language === Locale.ZH ? "ZH" : "EN",
+    title: note.title,
+    content: note.content,
+    updatedAt: note.updatedAt.toISOString(),
+  };
+}
+
 function toDashboardTag(tag: DashboardItemRecord["tags"][number]["tag"]): DashboardTag {
   return {
+    id: tag.id,
     slug: tag.slug,
     nameEn: tag.nameEn,
     nameZh: tag.nameZh,
