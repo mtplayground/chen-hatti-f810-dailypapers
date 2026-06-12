@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { ARXIV_CUSTOM_FIELD_ID, listArxivFieldPresets } from "@/services/arxiv-field-presets";
+import {
+  buildArxivLatestPapersFetchPayload,
+  splitArxivLatestPapersCustomKeywords,
+} from "@/services/arxiv-latest-papers-fetch-payload";
 
 const fieldPresets = listArxivFieldPresets();
 const DEFAULT_FIELD = fieldPresets.find((preset) => preset.id !== ARXIV_CUSTOM_FIELD_ID)?.id ?? "";
@@ -36,7 +40,10 @@ export function ArxivLatestPapersFetchPanel({
   const [result, setResult] = useState<ArxivLatestPapersFetchResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const selectedField = fieldPresets.find((preset) => preset.id === field) ?? null;
-  const customKeywords = useMemo(() => splitKeywords(customKeywordsText), [customKeywordsText]);
+  const customKeywords = useMemo(
+    () => splitArxivLatestPapersCustomKeywords(customKeywordsText),
+    [customKeywordsText],
+  );
   const parsedMaxResults = Number(maxResults);
   const maxResultsValid =
     Number.isInteger(parsedMaxResults) && parsedMaxResults >= 1 && parsedMaxResults <= 50;
@@ -62,12 +69,14 @@ export function ArxivLatestPapersFetchPanel({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          field,
-          ...(needsCustomKeywords ? { keywords: customKeywords } : {}),
-          maxResults: parsedMaxResults,
-          autoSummarize,
-        }),
+        body: JSON.stringify(
+          buildArxivLatestPapersFetchPayload({
+            field,
+            customKeywordsText,
+            maxResults: parsedMaxResults,
+            autoSummarize,
+          }),
+        ),
       });
       const body = (await response.json()) as ArxivLatestPapersFetchResult;
 
@@ -215,15 +224,4 @@ function FetchResultSummary({ result }: Readonly<{ result: ArxivLatestPapersFetc
       ))}
     </div>
   );
-}
-
-function splitKeywords(value: string): string[] {
-  return [
-    ...new Set(
-      value
-        .split(/[\n,]+/)
-        .map((keyword) => keyword.trim())
-        .filter((keyword) => keyword.length > 0),
-    ),
-  ];
 }

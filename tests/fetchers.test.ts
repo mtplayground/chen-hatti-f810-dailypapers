@@ -2,6 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { fetchArxivPaper, searchArxivPapersByKeywords } from "../src/fetchers/arxiv";
+import {
+  ARXIV_CUSTOM_FIELD_ID,
+  resolveArxivFieldKeywords,
+} from "../src/services/arxiv-field-presets";
+import { buildArxivLatestPapersFetchPayload } from "../src/services/arxiv-latest-papers-fetch-payload";
 import { fetchGitHubRepository, searchGitHubTrendingRepositories } from "../src/fetchers/github";
 
 function atomFeed(entries: string): string {
@@ -194,6 +199,132 @@ void test("searchGitHubTrendingRepositories builds topic and activity filters", 
   assert.equal(result.canonicalUrl, "https://github.com/openai/agent-kit");
   assert.equal(result.stars, 900);
 });
+
+void test("fetchGitHubFastestGrowingRepositories dry-run ranks candidates by stars", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalGitHubToken = process.env["GITHUB_TOKEN"];
+  const originalDatabaseUrl = process.env["DATABASE_URL"];
+  process.env["GITHUB_TOKEN"] = "fastest-growing-test-token";
+  process.env["DATABASE_URL"] ??= "postgresql://user:password@localhost:5432/test";
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    const headers = init?.headers as Record<string, string>;
+    const query = url.searchParams.get("q") ?? "";
+
+    assert.equal(url.hostname, "api.github.com");
+    assert.equal(url.pathname, "/search/repositories");
+    assert.equal(headers["Authorization"], "Bearer fastest-growing-test-token");
+    assert.equal(url.searchParams.get("sort"), "stars");
+    assert.equal(url.searchParams.get("per_page"), "3");
+    assert.match(query, /created:>=2026-06-01/);
+    assert.match(query, /pushed:>=2026-06-01/);
+
+    return Response.json({
+      items: [
+        githubSearchItem("middle", 200, "2026-06-11T00:00:00Z"),
+        githubSearchItem("winner", 500, "2026-06-10T00:00:00Z"),
+        githubSearchItem("lowest", 10, "2026-06-12T00:00:00Z"),
+      ],
+    });
+  };
+
+  try {
+    const { fetchGitHubFastestGrowingRepositories } =
+      await import("../src/services/github-fastest-growing-fetch");
+    const result = await fetchGitHubFastestGrowingRepositories({
+      maxResults: 2,
+      candidateLimit: 3,
+      createdAfter: new Date("2026-06-01T00:00:00.000Z"),
+      pushedAfter: new Date("2026-06-01T00:00:00.000Z"),
+      dryRun: true,
+    });
+
+    assert.equal(result.fetched, 2);
+    assert.equal(result.skipped, 2);
+    assert.deepEqual(
+      result.results.map((entry) => entry.repository),
+      ["openai/winner", "openai/middle"],
+    );
+    assert.ok(result.results.every((entry) => entry.status === "DRY_RUN"));
+  } finally {
+    globalThis.fetch = originalFetch;
+    restoreEnv("GITHUB_TOKEN", originalGitHubToken);
+    restoreEnv("DATABASE_URL", originalDatabaseUrl);
+  }
+});
+
+void test("arXiv field presets resolve preset and custom keywords for topic UI", () => {
+  const preset = resolveArxivFieldKeywords({ field: "Computer Vision" });
+  assert.ok(preset);
+  assert.equal(preset.field.id, "computer-vision");
+  assert.equal(preset.source, "preset");
+  assert.ok(preset.keywords.includes("object detection"));
+
+  const custom = resolveArxivFieldKeywords({
+    field: ARXIV_CUSTOM_FIELD_ID,
+    keywords: [" graph neural network ", "graph neural network", "causal inference"],
+  });
+  assert.ok(custom);
+  assert.equal(custom.field.id, ARXIV_CUSTOM_FIELD_ID);
+  assert.equal(custom.source, "custom");
+  assert.deepEqual(custom.keywords, ["graph neural network", "causal inference"]);
+});
+
+void test("arXiv latest-papers fetch panel builds API payloads", () => {
+  assert.deepEqual(
+    buildArxivLatestPapersFetchPayload({
+      field: "robotics",
+      maxResults: 7,
+      autoSummarize: false,
+      customKeywordsText: "ignored,for,presets",
+    }),
+    {
+      field: "robotics",
+      maxResults: 7,
+      autoSummarize: false,
+    },
+  );
+
+  assert.deepEqual(
+    buildArxivLatestPapersFetchPayload({
+      field: ARXIV_CUSTOM_FIELD_ID,
+      maxResults: 3,
+      autoSummarize: true,
+      customKeywordsText: "graph learning, causal discovery\ngraph learning",
+    }),
+    {
+      field: ARXIV_CUSTOM_FIELD_ID,
+      keywords: ["graph learning", "causal discovery"],
+      maxResults: 3,
+      autoSummarize: true,
+    },
+  );
+});
+
+function githubSearchItem(name: string, stars: number, pushedAt: string) {
+  return {
+    name,
+    full_name: `openai/${name}`,
+    html_url: `https://github.com/openai/${name}`,
+    owner: { login: "openai" },
+    description: `${name} repository`,
+    stargazers_count: stars,
+    forks_count: 5,
+    language: "TypeScript",
+    updated_at: pushedAt,
+    pushed_at: pushedAt,
+    topics: ["ai"],
+  };
+}
+
+function restoreEnv(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[key];
+    return;
+  }
+
+  process.env[key] = value;
+}
 
 function huggingFaceDailyPapersHtml(dailyPapers: unknown[]): string {
   const props = JSON.stringify({ dailyPapers }).replaceAll("&", "&amp;").replaceAll('"', "&quot;");
