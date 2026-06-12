@@ -219,7 +219,8 @@ export function buildRepositoryAnalysisPrompt(input: RepositoryAnalysisPromptInp
         content: [
           "You analyze GitHub repositories for a daily research dashboard.",
           languageInstruction,
-          "Return only valid JSON with exactly these keys: whatItDoes, problemSolved, techStack, usage, usefulness, limitations, installDifficulty.",
+          "Return only valid JSON with exactly these keys: headline, summary, keyPoints, whatItDoes, problemSolved, techStack, usage, usefulness, limitations, installDifficulty.",
+          "Use headline as a short dashboard title, summary as a one-paragraph executive summary, and keyPoints as 3 to 6 concise bullets.",
           "Use usefulness.score as an integer from 0 to 100 or null when there is not enough evidence.",
           "Set installDifficulty to UNKNOWN, EASY, MEDIUM, or HARD.",
           "Do not invent setup steps, dependencies, or capabilities that are not supported by the provided metadata.",

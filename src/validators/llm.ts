@@ -50,6 +50,9 @@ export const paperAnalysisResultSchema = z.object({
 });
 
 export const repositoryAnalysisResultSchema = z.object({
+  headline: textSchema,
+  summary: textSchema,
+  keyPoints: z.array(textSchema).min(1),
   whatItDoes: textSchema,
   problemSolved: textSchema,
   techStack: z.array(textSchema),
