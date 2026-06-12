@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { ItemKind, Locale } from "@prisma/client";
 
+import { POST as unifiedDailyFetchPost } from "../src/app/api/daily-fetch/route";
 import { prisma } from "../src/lib/prisma";
 import { fetchGitHubFastestGrowingRepositories } from "../src/services/github-fastest-growing-fetch";
 import { fetchHuggingFaceDailyTopPapers } from "../src/services/huggingface-daily-fetch";
@@ -101,6 +102,54 @@ void test("example workflow ingests pasted URLs, summarizes, edits notes/tags, a
     assert.match(exported.markdown, /## GitHub Repositories/);
     assert.match(exported.markdown, /mctai\/e2e-repo-issue-33/);
     assert.match(exported.markdown, /Repository summary for issue 33 workflow\./);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await cleanupWorkflowRows();
+  }
+});
+
+void test("unified daily fetch API returns Hugging Face papers and GitHub repositories", async () => {
+  process.env["GITHUB_TOKEN"] = "fast-growing-token";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockUnifiedDailyFetch;
+
+  try {
+    await cleanupWorkflowRows();
+
+    const response = await unifiedDailyFetchPost(
+      new Request("http://localhost/api/daily-fetch", {
+        method: "POST",
+        body: JSON.stringify({
+          maxResults: 1,
+          autoSummarize: false,
+          dryRun: true,
+          repositories: {
+            candidateLimit: 2,
+            createdAfter: "2026-06-01T00:00:00.000Z",
+            pushedAfter: "2026-06-01T00:00:00.000Z",
+          },
+        }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as {
+      papers?: { source?: string; status?: string; fetched?: number; skipped?: number };
+      repositories?: { source?: string; status?: string; fetched?: number; skipped?: number };
+    };
+
+    const papers = body.papers;
+    const repositories = body.repositories;
+    assert.ok(papers);
+    assert.ok(repositories);
+    assert.equal(papers.source, "huggingface-daily");
+    assert.equal(papers.status, "fetched");
+    assert.equal(papers.fetched, 1);
+    assert.equal(papers.skipped, 1);
+    assert.equal(repositories.source, "github-fastest-growing");
+    assert.equal(repositories.status, "fetched");
+    assert.equal(repositories.fetched, 1);
+    assert.equal(repositories.skipped, 1);
   } finally {
     globalThis.fetch = originalFetch;
     await cleanupWorkflowRows();
@@ -294,6 +343,20 @@ async function mockWorkflowFetch(input: string | URL | Request, init?: RequestIn
   }
 
   throw new Error(`Unexpected workflow E2E fetch: ${url.toString()}`);
+}
+
+async function mockUnifiedDailyFetch(input: string | URL | Request, init?: RequestInit) {
+  const url = requestUrl(input);
+
+  if (url.hostname === "huggingface.co") {
+    return mockHuggingFaceDailyFetch(input);
+  }
+
+  if (url.hostname === "api.github.com") {
+    return mockGitHubFastestGrowingFetch(input, init);
+  }
+
+  throw new Error(`Unexpected unified daily fetch request: ${url.toString()}`);
 }
 
 function mockGitHubFastestGrowingFetch(
