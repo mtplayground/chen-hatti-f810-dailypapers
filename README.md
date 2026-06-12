@@ -8,7 +8,7 @@ This application is a Next.js dashboard for collecting research papers and GitHu
 - Fetches metadata for arXiv papers, GitHub repositories, and generic paper-like web pages.
 - Summarizes papers and repositories with an OpenAI-compatible chat completions API.
 - Stores items, summaries, notes, tags, and status flags in PostgreSQL through Prisma.
-- Supports daily arXiv keyword fetches and GitHub trending repository fetches.
+- Supports daily arXiv keyword fetches, Hugging Face Daily Papers Top-5 ingestion, and a GitHub fastest-growing Top-5 approximation.
 - Filters and sorts the dashboard by query, type, date, topic, relevance, stars, and recent updates.
 - Exports the current day or filtered set as Markdown, JSON, or CSV.
 
@@ -28,7 +28,7 @@ This application is a Next.js dashboard for collecting research papers and GitHu
 - npm
 - PostgreSQL database URL in `DATABASE_URL`
 - LLM API key for summarization
-- GitHub token for repository metadata and trending fetches
+- GitHub token for repository metadata and fastest-growing repository fetches
 
 Persistent state must use PostgreSQL. Do not switch this app to SQLite, local JSON files, in-memory storage, or ephemeral disk.
 
@@ -48,22 +48,21 @@ export DATABASE_URL=$(cat /workspace/.database_url)
 
 The application reads these variables:
 
-| Variable                        | Required                               | Purpose                                                                                                         |
-| ------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                  | Yes                                    | PostgreSQL connection string used by Prisma.                                                                    |
-| `LLM_API_KEY`                   | Yes for summarization                  | API key sent as a bearer token to the chat completions endpoint.                                                |
-| `LLM_BASE_URL`                  | No                                     | OpenAI-compatible API base URL. Defaults to `https://api.openai.com/v1`.                                        |
-| `LLM_MODEL`                     | No                                     | Model used for summary generation. Defaults to `gpt-4o-mini`.                                                   |
-| `LLM_TEMPERATURE`               | No                                     | Summary generation temperature. Defaults to `0.2`.                                                              |
-| `LLM_TIMEOUT_MS`                | No                                     | LLM request timeout in milliseconds. Defaults to `30000`.                                                       |
-| `GITHUB_TOKEN`                  | Yes for GitHub fetches                 | Token for GitHub repository and trending API calls. `GH_TOKEN` is also accepted by lower-level GitHub fetchers. |
-| `ARXIV_DAILY_KEYWORDS`          | Required for default arXiv daily fetch | Comma- or newline-separated arXiv search keywords. `ARXIV_KEYWORDS` is also accepted.                           |
-| `ARXIV_DAILY_MAX_RESULTS`       | No                                     | Default max arXiv daily fetch results. Defaults to `10`; max is `50`.                                           |
-| `GITHUB_TRENDING_KEYWORDS`      | Conditionally required                 | Comma- or newline-separated GitHub trending search keywords. Required if no topics are provided.                |
-| `GITHUB_TRENDING_TOPICS`        | Conditionally required                 | Comma- or newline-separated GitHub topics. Required if no keywords are provided.                                |
-| `GITHUB_TRENDING_MAX_RESULTS`   | No                                     | Default max GitHub trending results. Defaults to `10`; max is `50`.                                             |
-| `GITHUB_TRENDING_MIN_STARS`     | No                                     | Minimum stars for trending searches. Defaults to `50`.                                                          |
-| `GITHUB_TRENDING_LOOKBACK_DAYS` | No                                     | Default pushed-date lookback window. Defaults to `7`.                                                           |
+| Variable                               | Required                               | Purpose                                                                                                                |
+| -------------------------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                         | Yes                                    | PostgreSQL connection string used by Prisma.                                                                           |
+| `LLM_API_KEY`                          | Yes for summarization                  | API key sent as a bearer token to the chat completions endpoint.                                                       |
+| `LLM_BASE_URL`                         | No                                     | OpenAI-compatible API base URL. Defaults to `https://api.openai.com/v1`.                                               |
+| `LLM_MODEL`                            | No                                     | Model used for summary generation. Defaults to `gpt-4o-mini`.                                                          |
+| `LLM_TEMPERATURE`                      | No                                     | Summary generation temperature. Defaults to `0.2`.                                                                     |
+| `LLM_TIMEOUT_MS`                       | No                                     | LLM request timeout in milliseconds. Defaults to `30000`.                                                              |
+| `GITHUB_TOKEN`                         | Yes for GitHub fetches                 | Token for GitHub repository and fastest-growing API calls. `GH_TOKEN` is also accepted by lower-level GitHub fetchers. |
+| `ARXIV_DAILY_KEYWORDS`                 | Required for default arXiv daily fetch | Comma- or newline-separated arXiv search keywords. `ARXIV_KEYWORDS` is also accepted.                                  |
+| `ARXIV_DAILY_MAX_RESULTS`              | No                                     | Default max arXiv daily fetch results. Defaults to `10`; max is `50`.                                                  |
+| `HUGGINGFACE_DAILY_PAPERS_MAX_RESULTS` | No                                     | Default max Hugging Face Daily Papers results. Defaults to `5`; max is `50`.                                           |
+| `GITHUB_FAST_GROWING_MAX_RESULTS`      | No                                     | Default max GitHub fastest-growing repositories to ingest. Defaults to `5`; max is `50`.                               |
+| `GITHUB_FAST_GROWING_LOOKBACK_DAYS`    | No                                     | Created/pushed lookback window for fastest-growing candidates. Defaults to `7`; max is `365`.                          |
+| `GITHUB_FAST_GROWING_CANDIDATE_LIMIT`  | No                                     | Number of recent GitHub search candidates to rank before taking the top repositories. Defaults to `25`; max is `100`.  |
 
 The current app stores text metadata and generated summaries only. It does not require object-storage credentials for the implemented workflows.
 
@@ -175,19 +174,35 @@ Summarization uses `LLM_API_KEY`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_TEMPERATURE`
 
 ## Daily Fetch APIs
 
-arXiv keyword fetch:
+Unified daily fetch runs both new daily sources in one request:
+
+- Hugging Face Daily Papers Top 5, sorted by attention/upvotes, stored as `Paper` items with `source: "huggingface-daily"`, `hfLikes`, and `hfRank` in the paper analysis payload.
+- GitHub fastest-growing Top 5 approximation, using recent created/pushed search windows sorted by stars, stored or updated as `Repository` items.
+
+```bash
+curl "http://localhost:8080/api/daily-fetch?maxResults=5&dryRun=true&autoSummarize=false"
+```
+
+The route accepts `GET` query parameters or a `POST` JSON body and returns `{ "papers": ..., "repositories": ... }` with per-source `fetched`, `ingested`, `skipped`, and `failed` counts. Set `dryRun=false` or omit it to persist items. Set `autoSummarize=false` if you want to import metadata without calling the LLM.
+
+Example `POST` body with separate GitHub candidate settings:
+
+```json
+{
+  "maxResults": 5,
+  "autoSummarize": false,
+  "repositories": {
+    "candidateLimit": 25,
+    "lookbackDays": 7
+  }
+}
+```
+
+The arXiv keyword route remains available for arXiv-specific pulls:
 
 ```bash
 curl "http://localhost:8080/api/arxiv/daily-fetch?keywords=agentic%20rag,llm&maxResults=5&dryRun=true"
 ```
-
-GitHub trending fetch:
-
-```bash
-curl "http://localhost:8080/api/github/trending-fetch?topics=ai,rag&minStars=100&maxResults=5&dryRun=true"
-```
-
-Both routes accept `GET` query parameters or a `POST` JSON body. Set `dryRun=false` or omit it to persist new items. Set `autoSummarize=false` if you want to import metadata without calling the LLM.
 
 ## Export APIs
 
@@ -234,6 +249,6 @@ Seed data is idempotent enough for repeated local setup: existing canonical URLs
 - Missing `DATABASE_URL`: export it before any Prisma command or app run.
 - LLM calls fail with configuration errors: set `LLM_API_KEY`; optionally confirm `LLM_BASE_URL` points at an OpenAI-compatible `/chat/completions` API.
 - GitHub fetches fail with authentication or rate-limit errors: set `GITHUB_TOKEN` or `GH_TOKEN`.
-- Daily fetch routes return configuration errors: provide keywords/topics in the request or set the corresponding environment variables.
+- Daily fetch routes return configuration errors: confirm numeric daily-source limits are within range and set `GITHUB_TOKEN` for GitHub fastest-growing fetches.
 - Seed or E2E commands fail against an empty database: run `npm run db:migrate` first.
 - Duplicate URL imports return conflicts or skipped items because canonical URLs are unique.
