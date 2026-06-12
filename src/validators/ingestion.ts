@@ -5,12 +5,14 @@ const ingestUrlSchema = z.string().trim().url();
 export const ingestSingleUrlSchema = z.object({
   url: ingestUrlSchema,
   important: z.boolean().optional(),
+  autoSummarize: z.boolean().default(true),
 });
 
 export const ingestBatchUrlsSchema = z
   .object({
     urls: z.union([ingestUrlSchema, z.array(ingestUrlSchema).min(1).max(50)]),
     important: z.boolean().optional(),
+    autoSummarize: z.boolean().default(true),
   })
   .transform((value) => ({
     ...value,

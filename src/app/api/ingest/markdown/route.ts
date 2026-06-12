@@ -24,6 +24,7 @@ async function markdownBodyFromRequest(request: Request): Promise<unknown> {
     return {
       markdown,
       important: booleanFromFormValue(formData.get("important")),
+      autoSummarize: booleanFromFormValue(formData.get("autoSummarize")),
     };
   }
 
