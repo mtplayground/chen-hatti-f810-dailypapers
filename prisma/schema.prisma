@@ -6,3 +6,88 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum ItemKind {
+  PAPER
+  REPOSITORY
+}
+
+enum InstallDifficulty {
+  UNKNOWN
+  EASY
+  MEDIUM
+  HARD
+}
+
+model Item {
+  id           String      @id @default(cuid())
+  kind         ItemKind
+  sourceUrl    String?     @db.Text
+  canonicalUrl String?     @unique @db.Text
+  important    Boolean     @default(false)
+  archived     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  paper        Paper?
+  repository   Repository?
+
+  @@index([kind, archived, important, createdAt])
+  @@map("items")
+}
+
+model Paper {
+  id               String    @id @default(cuid())
+  itemId           String    @unique
+  item             Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  title            String
+  authors          String[]  @default([])
+  venue            String?
+  publishedAt      DateTime?
+  revisedAt        DateTime?
+  arxivId          String?   @unique
+  doi              String?   @unique
+  landingUrl       String?   @db.Text
+  pdfUrl           String?   @db.Text
+  abstract         String?   @db.Text
+  problemStatement String?   @db.Text
+  methodology      String?   @db.Text
+  keyFindings      String?   @db.Text
+  limitations      String?   @db.Text
+  analysis         Json?
+  relevanceScore   Int?
+  relevanceNotes   String?   @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([publishedAt])
+  @@index([relevanceScore])
+  @@map("papers")
+}
+
+model Repository {
+  id                 String            @id @default(cuid())
+  itemId             String            @unique
+  item               Item              @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  name               String
+  url                String            @unique @db.Text
+  owner              String
+  description        String?           @db.Text
+  stars              Int               @default(0)
+  forks              Int               @default(0)
+  primaryLanguage    String?
+  lastUpdatedAt      DateTime?
+  readme             String?           @db.Text
+  techStack          String[]          @default([])
+  installDifficulty  InstallDifficulty @default(UNKNOWN)
+  installNotes       String?           @db.Text
+  researchValueScore Int?
+  researchValueNotes String?           @db.Text
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([owner, name])
+  @@index([stars])
+  @@index([lastUpdatedAt])
+  @@index([researchValueScore])
+  @@map("repositories")
+}
