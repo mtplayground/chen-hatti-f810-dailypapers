@@ -27,7 +27,11 @@ export async function importMarkdownItems(input: unknown): Promise<MarkdownImpor
     );
   }
 
-  const { results } = await ingestBatchUrls({ urls, important: data.important });
+  const { results } = await ingestBatchUrls({
+    urls,
+    important: data.important,
+    autoSummarize: data.autoSummarize,
+  });
   return { urls, results };
 }
 

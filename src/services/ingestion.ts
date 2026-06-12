@@ -11,6 +11,8 @@ import {
   type GitHubRepositoryMetadata,
 } from "@/fetchers";
 import { prisma } from "@/lib/prisma";
+import { summarizePaper } from "@/services/paper-summarization";
+import { summarizeRepository } from "@/services/repository-summarization";
 import {
   ingestBatchUrlsSchema,
   ingestSingleUrlSchema,
@@ -40,7 +42,18 @@ export type IngestUrlResult = {
   url: string;
   source: IngestionSource;
   item: ItemWithRelations;
+  summary: AutoSummarizationResult | null;
 };
+
+export type AutoSummarizationResult =
+  | {
+      ok: true;
+      item: ItemWithRelations;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
 
 export type BatchIngestUrlResult =
   | {
@@ -48,6 +61,7 @@ export type BatchIngestUrlResult =
       ok: true;
       source: IngestionSource;
       item: ItemWithRelations;
+      summary: AutoSummarizationResult | null;
     }
   | {
       url: string;
@@ -71,18 +85,21 @@ export async function ingestUrl(input: IngestSingleUrlInput): Promise<IngestUrlR
   if (extractArxivId(data.url) !== null) {
     const metadata = await fetchArxivPaper(data.url);
     const item = await persistPaperFromArxiv(metadata, data.important);
-    return { url: data.url, source: "ARXIV", item };
+    const summary = await maybeSummarizeItem(item, data.autoSummarize);
+    return { url: data.url, source: "ARXIV", item: summary?.ok ? summary.item : item, summary };
   }
 
   if (extractGitHubRepository(data.url) !== null) {
     const metadata = await fetchGitHubRepository(data.url);
     const item = await persistRepository(metadata, data.important);
-    return { url: data.url, source: "GITHUB", item };
+    const summary = await maybeSummarizeItem(item, data.autoSummarize);
+    return { url: data.url, source: "GITHUB", item: summary?.ok ? summary.item : item, summary };
   }
 
   const metadata = await fetchGenericMetadata(data.url);
   const item = await persistPaperFromGeneric(metadata, data.important);
-  return { url: data.url, source: "WEB", item };
+  const summary = await maybeSummarizeItem(item, data.autoSummarize);
+  return { url: data.url, source: "WEB", item: summary?.ok ? summary.item : item, summary };
 }
 
 export async function ingestBatchUrls(
@@ -93,12 +110,17 @@ export async function ingestBatchUrls(
 
   for (const url of data.urls) {
     try {
-      const result = await ingestUrl({ url, important: data.important });
+      const result = await ingestUrl({
+        url,
+        important: data.important,
+        autoSummarize: data.autoSummarize,
+      });
       results.push({
         url,
         ok: true,
         source: result.source,
         item: result.item,
+        summary: result.summary,
       });
     } catch (error) {
       results.push({
@@ -110,6 +132,41 @@ export async function ingestBatchUrls(
   }
 
   return { results };
+}
+
+async function maybeSummarizeItem(
+  item: ItemWithRelations,
+  autoSummarize: boolean,
+): Promise<AutoSummarizationResult | null> {
+  if (!autoSummarize) {
+    return null;
+  }
+
+  try {
+    if (item.kind === ItemKind.PAPER) {
+      const result = await summarizePaper({ itemId: item.id });
+      const summarizedItem = await getItemWithRelations(result.item.id);
+      return { ok: true, item: summarizedItem };
+    }
+
+    const result = await summarizeRepository({ itemId: item.id });
+    const summarizedItem = await getItemWithRelations(result.item.id);
+    return { ok: true, item: summarizedItem };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : "Unknown summarization error.",
+    };
+  }
+}
+
+async function getItemWithRelations(id: string): Promise<ItemWithRelations> {
+  return prisma.item.findUniqueOrThrow({
+    where: {
+      id,
+    },
+    include: itemInclude,
+  });
 }
 
 async function persistPaperFromArxiv(
