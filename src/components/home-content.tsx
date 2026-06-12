@@ -2,6 +2,7 @@
 
 import { FileText } from "lucide-react";
 
+import { AddItemPanel } from "@/components/add-item-panel";
 import { useLanguage } from "@/components/language-provider";
 import { PaperCard } from "@/components/paper-card";
 import { RepositoryCard } from "@/components/repository-card";
@@ -27,13 +28,16 @@ export function HomeContent({ dashboard }: HomeContentProps) {
     <section className="grid gap-8" id="today">
       <div className="grid gap-4 border-b border-[var(--color-border)] pb-8">
         <p className="text-sm font-medium text-[var(--color-muted)]">{messages.home.eyebrow}</p>
-        <div className="grid gap-3 md:grid-cols-[1fr_22rem] md:items-end">
+        <div className="grid gap-4 md:grid-cols-[1fr_22rem] md:items-end">
           <h1 className="text-3xl font-semibold tracking-normal sm:text-4xl">
             {messages.home.title}
           </h1>
-          <p className="text-base leading-7 text-[var(--color-muted)]">
-            {messages.home.summary(totalItems)}
-          </p>
+          <div className="grid gap-3 md:justify-items-end">
+            <p className="text-base leading-7 text-[var(--color-muted)] md:text-right">
+              {messages.home.summary(totalItems)}
+            </p>
+            <AddItemPanel />
+          </div>
         </div>
       </div>
 
