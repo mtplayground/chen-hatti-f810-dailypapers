@@ -4,3 +4,4 @@ export * from "@/validators/github";
 export * from "@/validators/items";
 export * from "@/validators/notes";
 export * from "@/validators/tags";
+export * from "@/validators/web";
