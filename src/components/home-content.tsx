@@ -1,6 +1,7 @@
 "use client";
 
 import { Download, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { AddItemPanel } from "@/components/add-item-panel";
@@ -13,6 +14,7 @@ import {
 import { useLanguage } from "@/components/language-provider";
 import { PaperCard } from "@/components/paper-card";
 import { RepositoryCard } from "@/components/repository-card";
+import { ARXIV_CUSTOM_FIELD_ID, listArxivFieldPresets } from "@/services/arxiv-field-presets";
 import type {
   DashboardData,
   DashboardDay,
@@ -42,9 +44,78 @@ type DashboardItemRow =
       repository: DashboardRepository;
     };
 
+const fieldPresetsById = new Map<string, ReturnType<typeof listArxivFieldPresets>[number]>(
+  listArxivFieldPresets().map((preset) => [preset.id, preset]),
+);
+
+type ArxivDailyFetchResponse = {
+  fetched?: number;
+  ingested?: number;
+  skipped?: number;
+  failed?: number;
+  error?: string;
+};
+
+async function fetchLatestPapersByField(
+  field: string,
+  controls: DashboardControlState,
+  refreshDashboard: () => void,
+  setIsFetching: (value: boolean) => void,
+  setStatus: (value: string | null) => void,
+): Promise<void> {
+  if (field === "") {
+    return;
+  }
+
+  const customKeywords = controls.topic
+    .split(",")
+    .map((keyword) => keyword.trim())
+    .filter((keyword) => keyword.length > 0);
+
+  if (field === ARXIV_CUSTOM_FIELD_ID && customKeywords.length === 0) {
+    setStatus("Enter custom keywords in Topic before fetching.");
+    return;
+  }
+
+  setIsFetching(true);
+  setStatus("Fetching latest field papers…");
+
+  try {
+    const response = await fetch("/api/arxiv/daily-fetch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        field,
+        ...(field === ARXIV_CUSTOM_FIELD_ID ? { keywords: customKeywords } : {}),
+        maxResults: 5,
+        autoSummarize: true,
+      }),
+    });
+    const result = (await response.json()) as ArxivDailyFetchResponse;
+
+    if (!response.ok) {
+      throw new Error(result.error ?? "Unable to fetch latest field papers.");
+    }
+
+    setStatus(
+      `Fetched ${result.fetched ?? 0}; ingested ${result.ingested ?? 0}; skipped ${result.skipped ?? 0}; failed ${result.failed ?? 0}.`,
+    );
+    refreshDashboard();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "Unable to fetch latest field papers.");
+  } finally {
+    setIsFetching(false);
+  }
+}
+
 export function HomeContent({ dashboard }: HomeContentProps) {
+  const router = useRouter();
   const { language, messages } = useLanguage();
   const [controls, setControls] = useState<DashboardControlState>(defaultDashboardControls);
+  const [isFetchingField, setIsFetchingField] = useState(false);
+  const [fieldFetchStatus, setFieldFetchStatus] = useState<string | null>(null);
   const itemLanguage: ItemLanguage = language === "zh" ? "ZH" : "EN";
   const totalItems = dashboard.stats.papers + dashboard.stats.repositories;
   const visibleDashboard = useMemo(
@@ -91,8 +162,25 @@ export function HomeContent({ dashboard }: HomeContentProps) {
 
       <DashboardControlBar
         controls={controls}
-        onChange={setControls}
-        onReset={() => setControls(defaultDashboardControls)}
+        fieldFetchStatus={fieldFetchStatus}
+        isFetchingField={isFetchingField}
+        onChange={(nextControls) => {
+          setControls(nextControls);
+          setFieldFetchStatus(null);
+        }}
+        onFetchField={(field) => {
+          void fetchLatestPapersByField(
+            field,
+            controls,
+            router.refresh,
+            setIsFetchingField,
+            setFieldFetchStatus,
+          );
+        }}
+        onReset={() => {
+          setControls(defaultDashboardControls);
+          setFieldFetchStatus(null);
+        }}
         resultCount={visibleItems}
         totalCount={totalItems}
       />
@@ -369,10 +457,17 @@ function applyDashboardControls(
   const rows = flattenDashboard(dashboard)
     .filter((row) => matchesType(row, controls.type))
     .filter((row) => matchesDate(row, controls.date))
+    .filter((row) => matchesField(row, controls))
     .filter((row) => matchesQuery(row, controls.query))
-    .filter((row) => matchesTopic(row, controls.topic))
+    .filter((row) =>
+      controls.field === ARXIV_CUSTOM_FIELD_ID ? true : matchesTopic(row, controls.topic),
+    )
     .filter((row) => matchesMinRelevance(row, controls.minRelevance))
-    .sort((left, right) => compareRows(left, right, controls.sort));
+    .sort((left, right) =>
+      controls.field === ""
+        ? compareRows(left, right, controls.sort)
+        : compareFieldRows(left, right),
+    );
 
   return groupRows(rows, dashboard.stats.notes, dashboard.availableTags);
 }
@@ -469,6 +564,33 @@ function matchesTopic(row: DashboardItemRow, topic: string): boolean {
   return topicText(row).includes(normalized);
 }
 
+function matchesField(row: DashboardItemRow, controls: DashboardControlState): boolean {
+  if (controls.field === "") {
+    return true;
+  }
+
+  if (row.kind !== "PAPER") {
+    return false;
+  }
+
+  if (controls.field === ARXIV_CUSTOM_FIELD_ID) {
+    const customKeywords = controls.topic
+      .split(",")
+      .map((keyword) => keyword.trim())
+      .filter((keyword) => keyword.length > 0);
+
+    return customKeywords.length === 0 || matchesFieldKeywords(row.paper, customKeywords);
+  }
+
+  const preset = fieldPresetsById.get(controls.field);
+  return preset === undefined || matchesFieldKeywords(row.paper, preset.keywords);
+}
+
+function matchesFieldKeywords(paper: DashboardPaper, keywords: string[]): boolean {
+  const text = paperFieldText(paper);
+  return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
+}
+
 function matchesMinRelevance(row: DashboardItemRow, minRelevance: string): boolean {
   if (minRelevance.trim() === "") {
     return true;
@@ -482,6 +604,19 @@ function matchesMinRelevance(row: DashboardItemRow, minRelevance: string): boole
 
   const score = relevanceScore(row);
   return score !== null && score >= threshold;
+}
+
+function compareFieldRows(left: DashboardItemRow, right: DashboardItemRow): number {
+  return (
+    byNumberDesc(importantScore(left), importantScore(right)) ||
+    byNumberDesc(relevanceScore(left), relevanceScore(right)) ||
+    byNumberDesc(updatedTime(left), updatedTime(right)) ||
+    byDateDesc(left, right)
+  );
+}
+
+function importantScore(row: DashboardItemRow): number {
+  return row.kind === "PAPER" && row.paper.important ? 1 : 0;
 }
 
 function compareRows(
@@ -561,6 +696,22 @@ function searchableText(row: DashboardItemRow): string {
     repository.researchValueNotes,
     ...summaryText(repository.summaries),
     ...tagText(repository.tags),
+  ]);
+}
+
+function paperFieldText(paper: DashboardPaper): string {
+  return normalizeSearchText([
+    paper.title,
+    ...paper.authors,
+    paper.venue,
+    paper.abstract,
+    paper.problemStatement,
+    paper.methodology,
+    paper.keyFindings,
+    paper.limitations,
+    paper.relevanceNotes,
+    ...summaryText(paper.summaries),
+    ...tagText(paper.tags),
   ]);
 }
 

@@ -2,6 +2,8 @@
 
 import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 
+import { ARXIV_CUSTOM_FIELD_ID, listArxivFieldPresets } from "@/services/arxiv-field-presets";
+
 export type DashboardTypeFilter = "ALL" | "PAPER" | "REPOSITORY";
 export type DashboardSortMode = "date" | "relevance" | "stars" | "updated";
 
@@ -10,6 +12,7 @@ export type DashboardControlState = {
   type: DashboardTypeFilter;
   date: string;
   topic: string;
+  field: string;
   minRelevance: string;
   sort: DashboardSortMode;
 };
@@ -19,23 +22,39 @@ export const defaultDashboardControls: DashboardControlState = {
   type: "ALL",
   date: "",
   topic: "",
+  field: "",
   minRelevance: "",
   sort: "date",
 };
 
+const fieldPresets = listArxivFieldPresets();
+
 export function DashboardControlBar({
   controls,
+  fieldFetchStatus,
+  isFetchingField = false,
   resultCount,
   totalCount,
   onChange,
+  onFetchField,
   onReset,
 }: Readonly<{
   controls: DashboardControlState;
+  fieldFetchStatus?: string | null;
+  isFetchingField?: boolean;
   resultCount: number;
   totalCount: number;
   onChange: (controls: DashboardControlState) => void;
+  onFetchField?: (field: string) => void;
   onReset: () => void;
 }>) {
+  const selectedField = fieldPresets.find((preset) => preset.id === controls.field) ?? null;
+  const fieldFetchDisabled =
+    onFetchField === undefined ||
+    controls.field === "" ||
+    isFetchingField ||
+    (controls.field === ARXIV_CUSTOM_FIELD_ID && controls.topic.trim() === "");
+
   return (
     <section
       aria-label="Dashboard filters"
@@ -51,7 +70,7 @@ export function DashboardControlBar({
         </p>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1.5fr)_repeat(5,minmax(8rem,1fr))_auto]">
+      <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1.5fr)_repeat(6,minmax(8rem,1fr))_auto]">
         <label className="grid gap-1 text-sm font-semibold">
           Search
           <span className="relative">
@@ -100,10 +119,54 @@ export function DashboardControlBar({
           <input
             className="min-h-11 border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm font-normal outline-none focus:border-[var(--color-accent)]"
             onChange={(event) => onChange({ ...controls, topic: event.target.value })}
-            placeholder="tag or stack"
+            placeholder="tag, stack, or custom field keywords"
             type="search"
             value={controls.topic}
           />
+        </label>
+
+        <label className="grid gap-1 text-sm font-semibold lg:col-span-2">
+          Latest Top Papers by Field
+          <div className="grid gap-2 min-[420px]:grid-cols-[1fr_auto]">
+            <select
+              className="min-h-11 border border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-sm font-normal outline-none focus:border-[var(--color-accent)]"
+              onChange={(event) =>
+                onChange({
+                  ...controls,
+                  field: event.target.value,
+                  type: event.target.value === "" ? controls.type : "PAPER",
+                  sort: event.target.value === "" ? controls.sort : "relevance",
+                })
+              }
+              value={controls.field}
+            >
+              <option value="">All fields</option>
+              {fieldPresets.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+            <button
+              className="min-h-11 border border-[var(--color-border)] px-3 py-2 text-sm font-semibold transition hover:border-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={fieldFetchDisabled}
+              onClick={() => onFetchField?.(controls.field)}
+              title={
+                controls.field === ARXIV_CUSTOM_FIELD_ID && controls.topic.trim() === ""
+                  ? "Enter custom keywords in Topic before fetching."
+                  : "Fetch the selected field's latest arXiv papers."
+              }
+              type="button"
+            >
+              {isFetchingField ? "Fetching…" : "Fetch"}
+            </button>
+          </div>
+          <span className="text-xs font-medium text-[var(--color-muted)]">
+            {fieldFetchStatus ??
+              (selectedField === null
+                ? "Choose a field to focus papers."
+                : selectedField.description)}
+          </span>
         </label>
 
         <label className="grid gap-1 text-sm font-semibold">
