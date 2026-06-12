@@ -149,6 +149,7 @@ void test("searchGitHubTrendingRepositories builds topic and activity filters", 
       topics: ["research"],
       maxResults: 5,
       minStars: 100,
+      createdAfter: new Date("2026-05-25T00:00:00.000Z"),
       pushedAfter: new Date("2026-06-01T00:00:00.000Z"),
     },
     {
@@ -161,6 +162,7 @@ void test("searchGitHubTrendingRepositories builds topic and activity filters", 
         assert.match(query, /agents/);
         assert.match(query, /topic:research/);
         assert.match(query, /stars:>=100/);
+        assert.match(query, /created:>=2026-05-25/);
         assert.match(query, /pushed:>=2026-06-01/);
         assert.match(query, /archived:false/);
 

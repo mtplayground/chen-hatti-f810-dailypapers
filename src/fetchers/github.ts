@@ -67,6 +67,7 @@ export type GitHubTrendingSearchInput = {
   topics: string[];
   maxResults: number;
   minStars?: number;
+  createdAfter?: Date;
   pushedAfter?: Date;
 };
 
@@ -370,6 +371,10 @@ function repositorySearchQuery(input: GitHubTrendingSearchInput): string {
 
   if (input.minStars !== undefined) {
     terms.push(`stars:>=${input.minStars}`);
+  }
+
+  if (input.createdAfter !== undefined) {
+    terms.push(`created:>=${formatGitHubDate(input.createdAfter)}`);
   }
 
   if (input.pushedAfter !== undefined) {

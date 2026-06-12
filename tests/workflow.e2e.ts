@@ -4,6 +4,7 @@ import test from "node:test";
 import { ItemKind, Locale } from "@prisma/client";
 
 import { prisma } from "../src/lib/prisma";
+import { fetchGitHubFastestGrowingRepositories } from "../src/services/github-fastest-growing-fetch";
 import { fetchHuggingFaceDailyTopPapers } from "../src/services/huggingface-daily-fetch";
 import { ingestBatchUrls, type BatchIngestUrlResult } from "../src/services/ingestion";
 import { exportMarkdownForDay } from "../src/services/markdown-export";
@@ -13,9 +14,15 @@ import { createTag, setItemTags } from "../src/services/tags";
 const PAPER_URL = "https://arxiv.org/abs/9912.33001v1";
 const PAPER_CANONICAL_URL = "https://arxiv.org/abs/9912.33001";
 const REPOSITORY_URL = "https://github.com/mctai/e2e-repo-issue-33";
+const FAST_GROWING_REPOSITORY_URL = "https://github.com/mctai/fast-growing-e2e";
 const TAG_SLUG = "issue-33-workflow";
 const HF_PAPER_CANONICAL_URL = "https://arxiv.org/abs/9912.33072";
-const TEST_CANONICAL_URLS = [PAPER_CANONICAL_URL, REPOSITORY_URL, HF_PAPER_CANONICAL_URL];
+const TEST_CANONICAL_URLS = [
+  PAPER_CANONICAL_URL,
+  REPOSITORY_URL,
+  HF_PAPER_CANONICAL_URL,
+  FAST_GROWING_REPOSITORY_URL,
+];
 
 type SuccessfulBatchResult = Extract<BatchIngestUrlResult, { ok: true }>;
 
@@ -94,6 +101,76 @@ void test("example workflow ingests pasted URLs, summarizes, edits notes/tags, a
     assert.match(exported.markdown, /## GitHub Repositories/);
     assert.match(exported.markdown, /mctai\/e2e-repo-issue-33/);
     assert.match(exported.markdown, /Repository summary for issue 33 workflow\./);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await cleanupWorkflowRows();
+  }
+});
+
+void test("GitHub fastest-growing fetch persists, updates, and dry-runs repositories", async () => {
+  process.env["GITHUB_TOKEN"] = "fast-growing-token";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = mockGitHubFastestGrowingFetch;
+
+  try {
+    await cleanupWorkflowRows();
+
+    const fetched = await fetchGitHubFastestGrowingRepositories({
+      maxResults: 1,
+      candidateLimit: 2,
+      createdAfter: new Date("2026-06-01T00:00:00.000Z"),
+      pushedAfter: new Date("2026-06-01T00:00:00.000Z"),
+      important: true,
+      autoSummarize: false,
+    });
+
+    assert.equal(fetched.fetched, 1);
+    assert.equal(fetched.ingested, 1);
+    assert.equal(fetched.updated, 0);
+    const ingested = fetched.results[0];
+    assert.ok(ingested);
+    assert.equal(ingested.status, "INGESTED");
+    assert.equal(ingested.repository, "mctai/fast-growing-e2e");
+
+    const item = await prisma.item.findUnique({
+      where: {
+        canonicalUrl: FAST_GROWING_REPOSITORY_URL,
+      },
+      include: {
+        repository: true,
+      },
+    });
+    assert.ok(item);
+    assert.equal(item.important, true);
+    const repository = item.repository;
+    assert.ok(repository);
+    assert.equal(repository.name, "fast-growing-e2e");
+    assert.equal(repository.stars, 5000);
+    assert.equal(repository.primaryLanguage, "TypeScript");
+    assert.deepEqual(repository.techStack, ["TypeScript"]);
+
+    const updated = await fetchGitHubFastestGrowingRepositories({
+      maxResults: 1,
+      candidateLimit: 2,
+      createdAfter: new Date("2026-06-01T00:00:00.000Z"),
+      pushedAfter: new Date("2026-06-01T00:00:00.000Z"),
+      autoSummarize: false,
+    });
+    assert.equal(updated.ingested, 0);
+    assert.equal(updated.updated, 1);
+    assert.equal(updated.results[0]?.status, "UPDATED");
+
+    await cleanupWorkflowRows();
+    const dryRun = await fetchGitHubFastestGrowingRepositories({
+      maxResults: 1,
+      candidateLimit: 2,
+      dryRun: true,
+      createdAfter: new Date("2026-06-01T00:00:00.000Z"),
+      pushedAfter: new Date("2026-06-01T00:00:00.000Z"),
+    });
+    assert.equal(dryRun.ingested, 0);
+    assert.equal(dryRun.skipped, 1);
+    assert.equal(dryRun.results[0]?.status, "DRY_RUN");
   } finally {
     globalThis.fetch = originalFetch;
     await cleanupWorkflowRows();
@@ -217,6 +294,59 @@ async function mockWorkflowFetch(input: string | URL | Request, init?: RequestIn
   }
 
   throw new Error(`Unexpected workflow E2E fetch: ${url.toString()}`);
+}
+
+function mockGitHubFastestGrowingFetch(
+  input: string | URL | Request,
+  init?: RequestInit,
+): Promise<Response> {
+  const url = requestUrl(input);
+  const headers = init?.headers as Record<string, string> | undefined;
+  assert.equal(headers?.["Authorization"], "Bearer fast-growing-token");
+
+  if (url.hostname !== "api.github.com" || url.pathname !== "/search/repositories") {
+    throw new Error(`Unexpected GitHub fastest-growing request: ${url.toString()}`);
+  }
+
+  const query = url.searchParams.get("q") ?? "";
+  assert.match(query, /created:>=2026-06-01/);
+  assert.match(query, /pushed:>=2026-06-01/);
+  assert.match(query, /archived:false/);
+  assert.equal(url.searchParams.get("sort"), "stars");
+  assert.equal(url.searchParams.get("per_page"), "2");
+
+  return Promise.resolve(
+    Response.json({
+      items: [
+        {
+          name: "fast-growing-e2e",
+          full_name: "mctai/fast-growing-e2e",
+          html_url: FAST_GROWING_REPOSITORY_URL,
+          owner: { login: "mctai" },
+          description: "Fast growing repository used by the workflow test.",
+          stargazers_count: 5000,
+          forks_count: 50,
+          language: "TypeScript",
+          updated_at: "2026-06-12T00:00:00Z",
+          pushed_at: "2026-06-12T01:00:00Z",
+          topics: ["growth", "testing"],
+        },
+        {
+          name: "slower-e2e",
+          full_name: "mctai/slower-e2e",
+          html_url: "https://github.com/mctai/slower-e2e",
+          owner: { login: "mctai" },
+          description: "Lower momentum repository.",
+          stargazers_count: 5,
+          forks_count: 1,
+          language: "TypeScript",
+          updated_at: "2026-06-11T00:00:00Z",
+          pushed_at: "2026-06-11T01:00:00Z",
+          topics: ["growth"],
+        },
+      ],
+    }),
+  );
 }
 
 function mockHuggingFaceDailyFetch(input: string | URL | Request): Promise<Response> {
