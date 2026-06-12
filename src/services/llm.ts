@@ -179,7 +179,8 @@ export function buildPaperAnalysisPrompt(input: PaperAnalysisPromptInput): LlmPr
         content: [
           "You analyze research papers for a daily research dashboard.",
           languageInstruction,
-          "Return only valid JSON with exactly these keys: problem, coreIdea, methodDesign, experiments, strengths, weaknesses, relevance.",
+          "Return only valid JSON with exactly these keys: headline, summary, keyPoints, problem, coreIdea, methodDesign, experiments, strengths, weaknesses, relevance.",
+          "Use headline as a short dashboard title, summary as a one-paragraph executive summary, and keyPoints as 3 to 6 concise bullets.",
           "Use relevance.score as an integer from 0 to 100 or null when there is not enough evidence.",
           "Do not invent experiments, venues, or claims that are not supported by the provided metadata.",
         ].join(" "),

@@ -34,6 +34,9 @@ export const repositoryAnalysisPromptInputSchema = z.object({
 });
 
 export const paperAnalysisResultSchema = z.object({
+  headline: textSchema,
+  summary: textSchema,
+  keyPoints: z.array(textSchema).min(1),
   problem: textSchema,
   coreIdea: textSchema,
   methodDesign: textSchema,

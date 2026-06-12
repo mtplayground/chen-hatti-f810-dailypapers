@@ -6,5 +6,6 @@ export * from "@/validators/items";
 export * from "@/validators/llm";
 export * from "@/validators/markdown";
 export * from "@/validators/notes";
+export * from "@/validators/summarization";
 export * from "@/validators/tags";
 export * from "@/validators/web";
