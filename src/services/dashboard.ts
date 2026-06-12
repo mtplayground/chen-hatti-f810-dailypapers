@@ -34,15 +34,24 @@ export type DashboardTag = {
 export type DashboardPaper = {
   id: string;
   createdAt: string;
+  sourceUrl: string | null;
+  canonicalUrl: string | null;
   important: boolean;
   archived: boolean;
   title: string;
   authors: string[];
   venue: string | null;
   publishedAt: string | null;
+  revisedAt: string | null;
+  arxivId: string | null;
+  doi: string | null;
   landingUrl: string | null;
   pdfUrl: string | null;
   abstract: string | null;
+  problemStatement: string | null;
+  methodology: string | null;
+  keyFindings: string | null;
+  limitations: string | null;
   relevanceScore: number | null;
   relevanceNotes: string | null;
   summaries: DashboardSummary[];
@@ -150,15 +159,24 @@ function toDashboardPaper(item: DashboardItemRecord): DashboardPaper {
   return {
     id: item.id,
     createdAt: item.createdAt.toISOString(),
+    sourceUrl: item.sourceUrl,
+    canonicalUrl: item.canonicalUrl,
     important: item.important,
     archived: item.archived,
     title: paper.title,
     authors: paper.authors,
     venue: paper.venue,
     publishedAt: dateOrNull(paper.publishedAt),
+    revisedAt: dateOrNull(paper.revisedAt),
+    arxivId: paper.arxivId,
+    doi: paper.doi,
     landingUrl: paper.landingUrl,
     pdfUrl: paper.pdfUrl,
     abstract: paper.abstract,
+    problemStatement: paper.problemStatement,
+    methodology: paper.methodology,
+    keyFindings: paper.keyFindings,
+    limitations: paper.limitations,
     relevanceScore: paper.relevanceScore,
     relevanceNotes: paper.relevanceNotes,
     summaries: item.summaries.map(toDashboardSummary),

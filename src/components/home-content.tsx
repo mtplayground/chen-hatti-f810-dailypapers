@@ -3,10 +3,10 @@
 import { ExternalLink, FileText, GitFork, Star } from "lucide-react";
 
 import { useLanguage } from "@/components/language-provider";
+import { PaperCard } from "@/components/paper-card";
 import type {
   DashboardData,
   DashboardDay,
-  DashboardPaper,
   DashboardRepository,
   DashboardSummary,
   DashboardTag,
@@ -91,7 +91,7 @@ function DashboardDaySection({
         ) : (
           <div className="grid gap-3">
             {day.papers.map((paper) => (
-              <PaperRow itemLanguage={itemLanguage} key={paper.id} paper={paper} />
+              <PaperCard itemLanguage={itemLanguage} key={paper.id} paper={paper} />
             ))}
           </div>
         )}
@@ -135,35 +135,6 @@ function DailySection({
       </div>
       {children}
     </section>
-  );
-}
-
-function PaperRow({ itemLanguage, paper }: { itemLanguage: ItemLanguage; paper: DashboardPaper }) {
-  const summary = selectSummary(paper.summaries, itemLanguage);
-  const description = summary?.summary ?? paper.abstract ?? "No summary available yet.";
-
-  return (
-    <article className="grid gap-3 border border-[var(--color-border)] bg-[var(--color-panel)] p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="grid gap-1">
-          <p className="text-xs font-semibold tracking-[0.08em] text-[var(--color-muted)] uppercase">
-            {paper.venue ?? formatOptionalDate(paper.publishedAt) ?? "Paper"}
-          </p>
-          <h4 className="text-lg font-semibold">{summary?.headline ?? paper.title}</h4>
-          <p className="text-sm text-[var(--color-muted)]">
-            {paper.authors.join(", ") || "Unknown authors"}
-          </p>
-        </div>
-        <ItemScore label="Relevance" score={paper.relevanceScore} />
-      </div>
-
-      <p className="line-clamp-3 text-sm leading-6 text-[var(--color-muted)]">{description}</p>
-      <ItemMeta tags={paper.tags} />
-      <div className="flex flex-wrap gap-2">
-        {paper.landingUrl !== null ? <ItemLink href={paper.landingUrl} label="Landing" /> : null}
-        {paper.pdfUrl !== null ? <ItemLink href={paper.pdfUrl} label="PDF" /> : null}
-      </div>
-    </article>
   );
 }
 
