@@ -2,6 +2,7 @@
 
 import { CalendarDays, Code2, ExternalLink, GitFork, Star, type LucideIcon } from "lucide-react";
 
+import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardRepository, DashboardSummary, DashboardTag } from "@/services/dashboard";
 
 type ItemLanguage = "EN" | "ZH";
@@ -74,30 +75,32 @@ export function RepositoryCard({
         ) : null}
       </section>
 
-      <section className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-        <div className="grid gap-2">
-          <h5 className="text-sm font-semibold">README Excerpt</h5>
-          <p className="text-sm leading-6 text-[var(--color-muted)]">
-            {readmeExcerpt(repository.readme)}
-          </p>
-        </div>
+      <ReadMoreDetails title={`${repository.owner}/${repository.name} details`}>
+        <section className="grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-2">
+            <h5 className="text-sm font-semibold">README Excerpt</h5>
+            <p className="text-sm leading-7 text-[var(--color-muted)]">
+              {readmeExcerpt(repository.readme)}
+            </p>
+          </div>
 
-        <div className="grid gap-3">
-          <AnalysisBlock
-            label="Install difficulty"
-            value={formatInstallDifficulty(repository.installDifficulty)}
-          />
-          <AnalysisBlock label="Usage notes" value={repository.installNotes} />
-        </div>
-      </section>
+          <div className="grid gap-3">
+            <AnalysisBlock
+              label="Install difficulty"
+              value={formatInstallDifficulty(repository.installDifficulty)}
+            />
+            <AnalysisBlock label="Usage notes" value={repository.installNotes} />
+          </div>
+        </section>
 
-      <section className="grid gap-3">
-        <h5 className="text-sm font-semibold">Repository Analysis</h5>
-        <div className="grid gap-3 md:grid-cols-2">
-          <AnalysisBlock label="Tech stack" value={formatTechStack(repository.techStack)} />
-          <AnalysisBlock label="Research value" value={repository.researchValueNotes} />
-        </div>
-      </section>
+        <section className="grid gap-3">
+          <h5 className="text-sm font-semibold">Repository Analysis</h5>
+          <div className="grid gap-3 md:grid-cols-2">
+            <AnalysisBlock label="Tech stack" value={formatTechStack(repository.techStack)} />
+            <AnalysisBlock label="Research value" value={repository.researchValueNotes} />
+          </div>
+        </section>
+      </ReadMoreDetails>
 
       <footer className="grid gap-3">
         <ItemMeta tags={repository.tags} />

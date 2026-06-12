@@ -2,6 +2,7 @@
 
 import { BookOpen, CalendarDays, ExternalLink, Link2, type LucideIcon } from "lucide-react";
 
+import { ReadMoreDetails } from "@/components/read-more-details";
 import type { DashboardPaper, DashboardSummary, DashboardTag } from "@/services/dashboard";
 
 type ItemLanguage = "EN" | "ZH";
@@ -73,28 +74,30 @@ export function PaperCard({
         </section>
       ) : null}
 
-      <section className="grid gap-2">
-        <h5 className="text-sm font-semibold">Abstract</h5>
-        <p className="text-sm leading-6 text-[var(--color-muted)]">
-          {paper.abstract ?? "No abstract available."}
-        </p>
-      </section>
-
-      <section className="grid gap-3">
-        <h5 className="text-sm font-semibold">Structured Analysis</h5>
-        <div className="grid gap-3 md:grid-cols-2">
-          <AnalysisBlock label="Problem" value={paper.problemStatement} />
-          <AnalysisBlock label="Method design" value={paper.methodology} />
-          <AnalysisBlock label="Experiments / findings" value={paper.keyFindings} />
-          <AnalysisBlock label="Limitations" value={paper.limitations} />
-        </div>
-        {paper.relevanceNotes !== null ? (
-          <p className="border border-[var(--color-border)] p-3 text-sm leading-6 text-[var(--color-muted)]">
-            <span className="font-semibold text-[var(--color-ink)]">Relevance notes: </span>
-            {paper.relevanceNotes}
+      <ReadMoreDetails title={`${paper.title} details`}>
+        <section className="grid gap-2">
+          <h5 className="text-sm font-semibold">Abstract</h5>
+          <p className="text-sm leading-7 text-[var(--color-muted)]">
+            {paper.abstract ?? "No abstract available."}
           </p>
-        ) : null}
-      </section>
+        </section>
+
+        <section className="grid gap-3">
+          <h5 className="text-sm font-semibold">Structured Analysis</h5>
+          <div className="grid gap-3 md:grid-cols-2">
+            <AnalysisBlock label="Problem" value={paper.problemStatement} />
+            <AnalysisBlock label="Method design" value={paper.methodology} />
+            <AnalysisBlock label="Experiments / findings" value={paper.keyFindings} />
+            <AnalysisBlock label="Limitations" value={paper.limitations} />
+          </div>
+          {paper.relevanceNotes !== null ? (
+            <p className="border border-[var(--color-border)] bg-[var(--color-panel)] p-3 text-sm leading-7 text-[var(--color-muted)]">
+              <span className="font-semibold text-[var(--color-ink)]">Relevance notes: </span>
+              {paper.relevanceNotes}
+            </p>
+          ) : null}
+        </section>
+      </ReadMoreDetails>
 
       <footer className="grid gap-3">
         <ItemMeta tags={paper.tags} />
